@@ -1,0 +1,22 @@
+{
+  "name": "rssmerge",
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/merge",
+      "headers": {
+        "Cache-Control": "public, max-age=600, s-maxage=600",
+        "Content-Type": "application/rss+xml; charset=utf-8"
+      }
+    }
+  ],
+  "github": {
+    "silent": true
+  }
+}
