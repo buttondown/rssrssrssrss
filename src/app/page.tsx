@@ -146,7 +146,7 @@ export default function Home() {
         </div>
 
         <div className="mb-12">
-          <h2 className="font-semibold text-gray-800">Why use RSS Merge?</h2>
+          <h2 className="font-semibold text-gray-800">Why use rssrssrss?</h2>
           <p className="text-gray-600">
             Lots of things take RSS. Relatively few things do a great job of interleaving multiple RSS feeds. This is a simple tool to do that.
           </p>

@@ -1,4 +1,4 @@
-# RSS Merge
+# rssrssrss
 
 A simple, stateless SPA that allows users to combine multiple RSS feeds into a single RSS feed URL. Built with Next.js and deployable to Vercel.
 
@@ -28,8 +28,8 @@ A simple, stateless SPA that allows users to combine multiple RSS feeds into a s
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/rssmerge.git
-cd rssmerge
+git clone https://github.com/yourusername/rssrssrss.git
+cd rssrssrss
 
 # Install dependencies
 npm install
@@ -50,7 +50,7 @@ npm run build
 
 This project is optimized for deployment on Vercel:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/git/external?repository-url=https%3A%2F%2Fgithub.com%2Fyourusername%2Frssmerge)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/git/external?repository-url=https%3A%2F%2Fgithub.com%2Fyourusername%2Frssrssrss)
 
 ## Technologies Used
 

@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
     <description>${escapeXml(mergedFeed.description || 'Combined feed from multiple sources')}</description>
     <link>${escapeXml(mergedFeed.link || request.nextUrl.toString())}</link>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
-    <generator>RSS Merge</generator>
+    <generator>rssrssrss</generator>
 ${items}  </channel>
 </rss>`;
       

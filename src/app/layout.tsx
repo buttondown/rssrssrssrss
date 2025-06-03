@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RSS Merge - Combine Multiple RSS Feeds",
+  title: "rssrssrss - Combine Multiple RSS Feeds",
   description: "A simple tool to combine multiple RSS feeds into one unified feed.",
 };
 
