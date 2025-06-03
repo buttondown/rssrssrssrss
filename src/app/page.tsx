@@ -122,9 +122,9 @@ export default function Home() {
 
 
   return (
-    <div className="min-h-screen bg-neutral-100 p-8 font-sans pb-0">
+    <div className="min-h-screen bg-neutral-100 font-sans p-0">
       <div className="flex">
-        <div className="max-w-prose">
+        <div className="max-w-prose p-8">
         <div className="mb-12">
           <h1 className="text-lg font-extrabold font-sans text-gray-900 mb-0">
             RSSRSSRSS
@@ -175,10 +175,16 @@ https://blog.example.com/feed"
           </div>
 
 <div className="flex-1"></div>
-<div className="flex h-[calc(100vh-2rem)] overflow-y-hidden">
+<div className="flex h-[calc(100vh)] overflow-y-hidden p-8 pb-0">
           {/* Live Preview Section */}
-          <div className="mx-auto shadow-2xl border border-neutral-300 rounded-md bg-white w-[600px] overflow-y-scroll">
+          <div className="mx-auto shadow-2xl border border-neutral-300 rounded-md rounded-b-none bg-white w-[600px] overflow-y-scroll">
             <div className="flex p-2 items-center justify-between pb-2 border-b border-neutral-300 sticky top-0 bg-white">
+              <div className="flex items-center">
+                {/* Every favicon, make a circle, 16px */}
+                  {previewItems.map((item) => item.link?.split('/')[2]).filter((domain, index, self) => self.indexOf(domain) === index).map((domain, index) => (
+                    <img key={domain} src={`https://s2.googleusercontent.com/s2/favicons?domain=${domain}`} alt={domain} className="w-4 h-4 -ml-2 first:ml-0 border border-neutral-300 rounded-full" style={{ zIndex: index + 1 }} />
+                  ))}
+              </div>
               <h3 className="text-sm font-semibold text-gray-800">Merged Feed</h3>
               {mergedUrl && (
                 <a href={mergedUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center font-semibold text-sm mr-2">

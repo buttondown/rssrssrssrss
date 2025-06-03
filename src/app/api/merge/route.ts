@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
       title: 'Merged RSS Feed!',
       description: `Combined feed from ${feeds.filter(f => f.title).map(f => f.title).join(', ')}`,
       link: request.nextUrl.toString(),
-      items: allItems
+      items: allItems.slice(0, 100)
     };
 
     // Generate XML using string concatenation
