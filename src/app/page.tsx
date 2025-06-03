@@ -16,10 +16,7 @@ type FeedItem = {
 export default function Home() {
   const [feedList, setFeedList] = useState<string>('');
   const [mergedUrl, setMergedUrl] = useState<string>('');
-  const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [feedsFetched, setFeedsFetched] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
   const [previewItems, setPreviewItems] = useState<FeedItem[]>([]);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
@@ -102,7 +99,6 @@ export default function Home() {
       
       setPreviewItems(items);
       setMergedUrl(`${window.location.origin}/api/merge?feeds=${compressedFeeds}`);
-      setFeedsFetched(true);
     } catch (error) {
       console.error('Error fetching preview:', error);
       setPreviewItems([]);
@@ -126,7 +122,7 @@ export default function Home() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8 font-sans pb-0">
+    <div className="min-h-screen bg-neutral-100 p-8 font-sans pb-0">
       <div className="flex">
         <div className="max-w-prose">
         <div className="mb-12">
@@ -165,7 +161,7 @@ export default function Home() {
               placeholder="https://example.com/feed.xml
 https://another-site.com/rss
 https://blog.example.com/feed"
-              className="w-full px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+              className="w-full px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono bg-white"
               rows={6}
             />
           </div>
@@ -175,20 +171,14 @@ https://blog.example.com/feed"
               <p>{errorMessage}</p>
             </div>
           )}
-
-          {isGenerating && (
-            <div className="mt-6 flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            </div>
-          )}
           </div>
           </div>
 
 <div className="flex-1"></div>
 <div className="flex h-[calc(100vh-2rem)] overflow-y-hidden">
           {/* Live Preview Section */}
-          <div className="mx-auto shadow-2xl border border-neutral-300 rounded-md bg-neutral-100 w-[600px] overflow-y-scroll">
-            <div className="flex p-2 items-center justify-between pb-2 border-b border-neutral-300 sticky top-0 bg-neutral-100">
+          <div className="mx-auto shadow-2xl border border-neutral-300 rounded-md bg-white w-[600px] overflow-y-scroll">
+            <div className="flex p-2 items-center justify-between pb-2 border-b border-neutral-300 sticky top-0 bg-white">
               <h3 className="text-sm font-semibold text-gray-800">Merged Feed</h3>
               {mergedUrl && (
                 <a href={mergedUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center font-semibold text-sm mr-2">
@@ -203,7 +193,7 @@ https://blog.example.com/feed"
             {isLoadingPreview ? (
               <div className="space-y-0">
                 {[...Array(5)].map((_, index) => (
-                  <div key={index} className="border border-gray-100 text-sm odd:bg-neutral-50 p-2 border-b border-b-neutral-300 animate-pulse">
+                  <div key={index} className="border border-gray-100 text-sm odd:bg-neutral-100/50 p-2 border-b border-b-neutral-300 animate-pulse">
                     <div className="h-5 bg-gray-300 rounded w-3/4 mb-2"></div>
                     <div className="space-y-2">
                       <div className="h-3 bg-gray-200 rounded"></div>
