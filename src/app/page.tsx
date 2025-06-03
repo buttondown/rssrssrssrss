@@ -1,32 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import LZString from 'lz-string';
+
+type FeedItem = {
+  title?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  sourceFeedTitle?: string;
+  image?: string;
+};
 
 export default function Home() {
-  const [feeds, setFeeds] = useState<string[]>(['']);
+  const [feedList, setFeedList] = useState<string>('');
   const [mergedUrl, setMergedUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [feedsFetched, setFeedsFetched] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [previewItems, setPreviewItems] = useState<FeedItem[]>([]);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
-  const addFeed = () => {
-    setFeeds([...feeds, '']);
-    setErrorMessage('');
-  };
+  const sampleFeeds = [
+    { name: 'Tech News Bundle', feeds: ['https://hnrss.org/frontpage', 'https://feeds.arstechnica.com/arstechnica/features', 'https://www.theverge.com/rss/index.xml'] },
+    { name: 'Development Blogs', feeds: ['https://overreacted.io/rss.xml', 'https://jvns.ca/atom.xml', 'https://kentcdodds.com/blog/rss.xml'] },
+    { name: 'Design & UX', feeds: ['https://www.smashingmagazine.com/feed/', 'https://alistapart.com/main/feed/', 'https://www.nngroup.com/feed/rss/'] }
+  ];
 
-  const removeFeed = (index: number) => {
-    const updatedFeeds = feeds.filter((_, i) => i !== index);
-    setFeeds(updatedFeeds.length ? updatedFeeds : ['']);
-    setErrorMessage('');
-  };
-
-  const updateFeed = (index: number, value: string) => {
-    const updatedFeeds = [...feeds];
-    updatedFeeds[index] = value;
-    setFeeds(updatedFeeds);
-    setErrorMessage('');
+  const getFeedsFromList = () => {
+    return feedList
+      .split('\n')
+      .map(feed => feed.trim())
+      .filter(feed => feed !== '');
   };
 
   const isValidUrl = (url: string) => {
@@ -38,15 +45,15 @@ export default function Home() {
     }
   };
 
-  const validateFeeds = (feedUrls: string[]) => {
-    const validFeeds = feedUrls.filter(feed => feed.trim() !== '');
+  const validateFeeds = () => {
+    const feedUrls = getFeedsFromList();
     
-    if (validFeeds.length === 0) {
+    if (feedUrls.length === 0) {
       setErrorMessage('Please enter at least one RSS feed URL');
       return false;
     }
     
-    const invalidFeeds = validFeeds.filter(feed => !isValidUrl(feed));
+    const invalidFeeds = feedUrls.filter(feed => !isValidUrl(feed));
     if (invalidFeeds.length > 0) {
       setErrorMessage(`Invalid URL${invalidFeeds.length > 1 ? 's' : ''}: ${invalidFeeds.join(', ')}`);
       return false;
@@ -55,95 +62,112 @@ export default function Home() {
     return true;
   };
 
-  const generateMergedFeed = () => {
-    const validFeeds = feeds.filter(feed => feed.trim() !== '');
-    if (!validateFeeds(validFeeds)) return;
+  const fetchPreview = async () => {
+    const feeds = getFeedsFromList();
+    const validFeeds = feeds.filter(feed => isValidUrl(feed));
+    if (validFeeds.length === 0) {
+      setPreviewItems([]);
+      return;
+    }
 
-    setIsGenerating(true);
-    setErrorMessage('');
-    
+    setIsLoadingPreview(true);
     try {
-      const feedsParam = validFeeds
-        .map(feed => encodeURIComponent(feed))
-        .join('&url=');
+      // Compress feeds using LZ-string for better compression
+      const feedsData = JSON.stringify(validFeeds);
+      const compressedFeeds = LZString.compressToEncodedURIComponent(feedsData);
       
-      const mergedUrl = `${window.location.origin}/api/merge?url=${feedsParam}`;
-      setMergedUrl(mergedUrl);
+      const response = await fetch(`/api/merge?feeds=${compressedFeeds}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch preview');
+      }
+      
+      const text = (await response.text()).replaceAll('content:encoded', 'content');
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(text, 'text/xml');
+      console.log(xmlDoc);
+      
+      const items = Array.from(xmlDoc.querySelectorAll('item')).slice(0, 25).map(item => {
+        const getTextContent = (tagName: string) => 
+          item.querySelector(tagName)?.textContent || undefined;
+
+        return {
+          title: getTextContent('title'),
+          link: getTextContent('link'),
+          pubDate: getTextContent('pubDate'),
+          content: getTextContent('content'),
+          sourceFeedTitle: item.querySelector('source')?.textContent || undefined,
+          image: parser.parseFromString(getTextContent('encoded') || '', 'text/html').querySelector('img')?.getAttribute('src') || undefined
+        };
+      });
+      
+      setPreviewItems(items);
+      setMergedUrl(`${window.location.origin}/api/merge?feeds=${compressedFeeds}`);
       setFeedsFetched(true);
     } catch (error) {
-      setErrorMessage('Error generating feed URL');
-      console.error('Error generating feed URL:', error);
+      console.error('Error fetching preview:', error);
+      setPreviewItems([]);
     } finally {
-      setIsGenerating(false);
+      setIsLoadingPreview(false);
     }
   };
 
+  useEffect(() => {
+    const feeds = getFeedsFromList();
+    const validFeeds = feeds.filter(feed => isValidUrl(feed));
+    if (validFeeds.length > 0) {
+      const timeoutId = setTimeout(() => {
+        fetchPreview();
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    } else {
+      setPreviewItems([]);
+    }
+  }, [feedList]);
+
+
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-            RSS Merge
+    <div className="min-h-screen bg-gray-50 p-8 font-sans pb-0">
+      <div className="flex">
+        <div className="max-w-prose">
+        <div className="mb-12">
+          <h1 className="text-lg font-extrabold font-sans text-gray-900 mb-0">
+            RSSRSSRSS
           </h1>
-          <p className="mt-3 text-lg text-gray-500">
+          <p className="text-sm font-sans text-gray-500">
             Combine multiple RSS feeds into one unified feed
           </p>
         </div>
 
-        <div className="bg-white shadow rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">How it works</h2>
-          <ol className="list-decimal pl-5 space-y-2 text-gray-600">
-            <li>Enter the URLs of RSS feeds you want to combine</li>
-            <li>Click "Generate Merged Feed" to create your combined feed</li>
-            <li>Use the generated URL in your favorite RSS reader</li>
-            <li>The combined feed will always show the latest content from all sources</li>
-          </ol>
+        <div className="mb-12">
+          <h2 className="font-semibold text-gray-800">How it works</h2>
+          <p className="text-gray-600">
+            Enter the URLs of RSS feeds you want to combine, click "Generate Merged Feed" to create your combined feed, then use the generated URL in your favorite RSS reader. The combined feed will always show the latest content from all sources.
+          </p>
         </div>
 
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Add your RSS feeds</h2>
-          
-          <div className="space-y-4">
-            {feeds.map((feed, index) => (
-              <div key={index} className="flex items-center">
-                <input
-                  type="url"
-                  value={feed}
-                  onChange={(e) => updateFeed(index, e.target.value)}
-                  placeholder="https://example.com/feed.xml"
-                  className="flex-grow px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeFeed(index)}
-                  className="ml-2 inline-flex items-center p-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                  disabled={feeds.length === 1}
-                >
-                  <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
+        <div className="mb-12">
+          <h2 className="font-semibold text-gray-800">Why use RSS Merge?</h2>
+          <p className="text-gray-600">
+            Lots of things take RSS. Relatively few things do a great job of interleaving multiple RSS feeds. This is a simple tool to do that.
+          </p>
+        </div>
 
-          <div className="mt-4 flex justify-between">
-            <button
-              type="button"
-              onClick={addFeed}
-              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Add Another Feed
-            </button>
-            
-            <button
-              type="button"
-              onClick={generateMergedFeed}
-              disabled={!feeds.some(feed => feed.trim() !== '')}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              Generate Merged Feed
-            </button>
+        <div className="">
+          <h2 className="font-semibold text-gray-800">Add your RSS feeds</h2>
+          <p className="text-sm text-gray-600 mb-2">Enter one RSS feed URL per line</p>
+          <div className="space-y-4">
+            <textarea
+              value={feedList}
+              onChange={(e) => {
+                setFeedList(e.target.value);
+                setErrorMessage('');
+              }}
+              placeholder="https://example.com/feed.xml
+https://another-site.com/rss
+https://blog.example.com/feed"
+              className="w-full px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+              rows={6}
+            />
           </div>
 
           {errorMessage && (
@@ -157,50 +181,105 @@ export default function Home() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
           )}
+          </div>
+          </div>
 
-          {mergedUrl && feedsFetched && (
-            <div className="mt-6 p-4 border border-gray-200 rounded-md bg-gray-50">
-              <h3 className="text-lg font-medium text-gray-800 mb-2">Your merged feed URL:</h3>
-              <div className="flex">
-                <input
-                  type="text"
-                  readOnly
-                  value={mergedUrl}
-                  className="flex-grow px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(mergedUrl);
-                    setCopySuccess(true);
-                    setTimeout(() => setCopySuccess(false), 2000);
-                  }}
-                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-r-md shadow-sm text-white ${copySuccess ? 'bg-green-600' : 'bg-indigo-600 hover:bg-indigo-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors`}
-                >
-                  {copySuccess ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-              <div className="mt-4">
-                <a
-                  href={mergedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-indigo-600 hover:text-indigo-800 flex items-center"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+<div className="flex-1"></div>
+<div className="flex h-[calc(100vh-2rem)] overflow-y-hidden">
+          {/* Live Preview Section */}
+          <div className="mx-auto shadow-2xl border border-neutral-300 rounded-md bg-neutral-100 w-[600px] overflow-y-scroll">
+            <div className="flex p-2 items-center justify-between pb-2 border-b border-neutral-300 sticky top-0 bg-neutral-100">
+              <h3 className="text-sm font-semibold text-gray-800">Merged Feed</h3>
+              {mergedUrl && (
+                <a href={mergedUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 flex items-center font-semibold text-sm mr-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="size-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
                   View Feed
                 </a>
-              </div>
+              )}
             </div>
-          )}
+            
+            {isLoadingPreview ? (
+              <div className="space-y-0">
+                {[...Array(5)].map((_, index) => (
+                  <div key={index} className="border border-gray-100 text-sm odd:bg-neutral-50 p-2 border-b border-b-neutral-300 animate-pulse">
+                    <div className="h-5 bg-gray-300 rounded w-3/4 mb-2"></div>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+                    <div className="flex justify-between mt-2">
+                      <div className="flex items-center">
+                        <div className="w-4 h-4 bg-gray-300 rounded mr-1"></div>
+                        <div className="h-3 bg-gray-200 rounded w-24"></div>
+                      </div>
+                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : previewItems.length > 0 ? (
+              <div className="">
+                {previewItems.map((item, index) => (
+                  <div key={index} className="border border-gray-100 text-sm odd:bg-neutral-50 p-2 max-w-full border-b border-b-neutral-300">
+                    {item.image && (
+                      <img src={item.image} alt={item.title} className="w-full h-48 object-cover mb-2 rounded-md" />
+                    )}
+                    <h4 className="font-semibold text-gray-900 truncate">
+                      <a href={item.link} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {item.title || 'Untitled'}
+                      </a>
+                    </h4>
+                    <div className="flex-1">
+                      {item.content && (
+                        <p className="text-sm text-gray-600 line-clamp-4 break-normal" dangerouslySetInnerHTML={{ __html: item.content }} />
+                      )}
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs">
+                      <div className="flex items-center">
+                        <img src={`https://s2.googleusercontent.com/s2/favicons?domain=${item.link?.split('/')[2]}`} alt={item.title} className="w-4 h-4 mr-1 rounded-md" />
+                        {item.sourceFeedTitle && (
+                          <p className="text-gray-500">
+                            {item.sourceFeedTitle}
+                          </p>
+                        )}
+                      </div>
+                      {item.pubDate && (
+                        <p className="text-gray-500">
+                          {new Date(item.pubDate).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 px-8 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No feeds added yet</h3>
+                <p className="text-sm text-gray-500 mb-6">Add RSS feed URLs to see a preview of your merged feed</p>
+                
+                <div className="space-y-3 w-full">
+                  <p className="text-xs text-gray-600 font-semibold uppercase tracking-wider">Try a sample bundle:</p>
+                  {sampleFeeds.map((bundle, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setFeedList(bundle.feeds.join('\n'))}
+                      className="w-full px-4 py-3 text-sm text-left border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="font-semibold text-gray-800">{bundle.name}</div>
+                      <div className="text-xs text-gray-500 mt-1">{bundle.feeds.length} feeds</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-
-        <footer className="mt-8 text-center text-sm text-gray-500">
-          <p>RSS Merge - A simple tool to combine multiple RSS feeds</p>
-        </footer>
+        </div>
       </div>
-    </div>
   );
 }

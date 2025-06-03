@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Parser from 'rss-parser';
-import * as xml2js from 'xml2js';
+import LZString from 'lz-string';
 
 // Types for RSS items
 type CustomItem = {
@@ -37,10 +37,45 @@ const parser = new Parser({
   },
 });
 
+// Helper functions for XML generation
+function escapeXml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function wrapCDATA(content: string): string {
+  return `<![CDATA[${content}]]>`;
+}
+
 export async function GET(request: NextRequest) {
   // Get the URL parameters
   const searchParams = request.nextUrl.searchParams;
-  const urls = searchParams.getAll('url');
+  let urls: string[] = [];
+  
+  // Check for compressed feeds parameter first
+  const compressedFeeds = searchParams.get('feeds');
+  if (compressedFeeds) {
+    try {
+      // Decompress using LZ-string and parse JSON
+      const decompressed = LZString.decompressFromEncodedURIComponent(compressedFeeds);
+      if (!decompressed) {
+        throw new Error('Failed to decompress feeds');
+      }
+      urls = JSON.parse(decompressed);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Invalid compressed feeds parameter' },
+        { status: 400 }
+      );
+    }
+  } else {
+    // Fall back to old URL parameter format
+    urls = searchParams.getAll('url');
+  }
 
   // If no URLs are provided, return an error
   if (!urls || urls.length === 0) {
@@ -50,7 +85,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  try {
     // Fetch and parse all RSS feeds in parallel
     const feedPromises = urls.map(async (url) => {
       try {
@@ -88,77 +122,73 @@ export async function GET(request: NextRequest) {
 
     // Create a merged feed
     const mergedFeed: CustomFeed = {
-      title: 'Merged RSS Feed',
+      title: 'Merged RSS Feed!',
       description: `Combined feed from ${feeds.filter(f => f.title).map(f => f.title).join(', ')}`,
       link: request.nextUrl.toString(),
       items: allItems
     };
 
-    // Convert the feed to XML
-    const builder = new xml2js.Builder({
-      rootName: 'rss',
-      xmldec: { version: '1.0', encoding: 'UTF-8' },
-      renderOpts: { pretty: true, indent: '  ', newline: '\n' },
-      attrkey: '@',
-      cdata: true,
-      headless: false,
-      allowSurrogateChars: true
-    });
-    
-    const rssObj = {
-      '@': {
-        'version': '2.0',
-        'xmlns:content': 'http://purl.org/rss/1.0/modules/content/',
-        'xmlns:dc': 'http://purl.org/dc/elements/1.1/'
-      },
-      'channel': {
-        'title': mergedFeed.title || 'Merged RSS Feed',
-        'description': mergedFeed.description || `Combined feed from multiple sources`,
-        'link': mergedFeed.link || request.nextUrl.toString(),
-        'lastBuildDate': new Date().toUTCString(),
-        'generator': 'RSS Merge',
-        'item': mergedFeed.items.map(item => {
-          const rssItem: any = {
-            'title': item.title || 'Untitled',
-            'link': item.link || '',
-            'guid': item.guid || item.link || '',
-          };
-          
-          if (item.pubDate) {
-            rssItem.pubDate = item.pubDate;
-          }
-
-          if (item.creator) {
-            // Handle DC creator with CDATA
-            rssItem['dc:creator'] = item.creator;
-          }
-          
-          if (item.content) {
-            // Handle content with CDATA
-            rssItem['content:encoded'] = item.content;
-          } else if (item.contentSnippet) {
-            rssItem.description = item.contentSnippet;
-          }
-          
-          if (item.categories && item.categories.length > 0) {
-            rssItem.category = item.categories;
-          }
-          
-          // Add source information
-          if (item.sourceFeedTitle && item.sourceFeedUrl) {
-            rssItem.source = {
-              '@': { url: item.sourceFeedUrl },
-              '#': item.sourceFeedTitle
-            };
-          }
-          
-          return rssItem;
-        })
+    // Generate XML using string concatenation
+    const items = mergedFeed.items.map(item => {
+      let itemXml = '    <item>\n';
+      
+      // Title
+      itemXml += `      <title>${escapeXml(item.title || 'Untitled')}</title>\n`;
+      
+      // Link
+      if (item.link) {
+        itemXml += `      <link>${escapeXml(item.link)}</link>\n`;
       }
-    };
+      
+      // GUID
+      itemXml += `      <guid>${escapeXml(item.guid || item.link || '')}</guid>\n`;
+      
+      // Publication date
+      if (item.pubDate) {
+        itemXml += `      <pubDate>${escapeXml(item.pubDate)}</pubDate>\n`;
+      } else if (item.isoDate) {
+        itemXml += `      <pubDate>${escapeXml(item.isoDate)}</pubDate>\n`;
+      }
+      
+      // Creator (DC namespace)
+      if (item.creator) {
+        itemXml += `      <dc:creator>${wrapCDATA(item.creator)}</dc:creator>\n`;
+      }
+      
+      // Content or description
+      if (item.content) {
+        const cleanContent = item.content.replace(/[^\x20-\x7E\n\r\t]/g, '');
+        itemXml += `      <content:encoded>${wrapCDATA(cleanContent)}</content:encoded>\n`;
+      } else if (item.contentSnippet) {
+        itemXml += `      <description>${escapeXml(item.contentSnippet)}</description>\n`;
+      }
+      
+      // Categories
+      if (item.categories && item.categories.length > 0) {
+        item.categories.forEach(category => {
+          itemXml += `      <category>${escapeXml(category)}</category>\n`;
+        });
+      }
+      
+      // Source information
+      if (item.sourceFeedTitle && item.sourceFeedUrl) {
+        itemXml += `      <source url="${escapeXml(item.sourceFeedUrl)}">${escapeXml(item.sourceFeedTitle)}</source>\n`;
+      }
+      
+      itemXml += '    </item>\n';
+      return itemXml;
+    }).join('');
 
-    try {
-      const xml = builder.buildObject(rssObj);
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>${escapeXml(mergedFeed.title || 'Merged RSS Feed!')}</title>
+    <description>${escapeXml(mergedFeed.description || 'Combined feed from multiple sources')}</description>
+    <link>${escapeXml(mergedFeed.link || request.nextUrl.toString())}</link>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+    <generator>RSS Merge</generator>
+${items}  </channel>
+</rss>`;
       
       // Return the XML response
       return new NextResponse(xml, {
@@ -166,54 +196,5 @@ export async function GET(request: NextRequest) {
           'Content-Type': 'application/rss+xml; charset=utf-8',
           'Cache-Control': 'max-age=600, s-maxage=600', // Cache for 10 minutes
         },
-      });
-    } catch (xmlError) {
-      console.error('Error building XML:', xmlError);
-      
-      // Try a more aggressive sanitization approach
-      try {
-        // Create a simplified object with minimal content
-        const simpleRssObj = {
-          '@': {
-            'version': '2.0'
-          },
-          'channel': {
-            'title': 'Merged RSS Feed',
-            'description': 'Combined feed from multiple sources',
-            'link': request.nextUrl.toString(),
-            'item': mergedFeed.items.map(item => ({
-              'title': (item.title || 'Untitled').replace(/[^\w\s.,;:!?'"()[\]{}-]/g, ''),
-              'link': item.link || '',
-              'description': item.contentSnippet ? item.contentSnippet.replace(/[^\w\s.,;:!?'"()[\]{}-]/g, '') : undefined
-            }))
-          }
-        };
-        
-        const simpleXml = builder.buildObject(simpleRssObj);
-        return new NextResponse(simpleXml, {
-          headers: {
-            'Content-Type': 'application/rss+xml; charset=utf-8',
-            'Cache-Control': 'max-age=600, s-maxage=600',
-          },
-        });
-      } catch (fallbackError) {
-        console.error('Fallback XML generation failed:', fallbackError);
-        return NextResponse.json(
-          { error: `Error generating RSS XML: ${xmlError.message}` },
-          { status: 500 }
-        );
-      }
-    }
-  } catch (error) {
-    console.error('Error processing RSS feeds:', error);
-    // Add more detailed error information
-    const errorMessage = error instanceof Error 
-      ? `Error processing RSS feeds: ${error.name}: ${error.message}` 
-      : 'Error processing RSS feeds: Unknown error';
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
-  }
+      }); 
 }
