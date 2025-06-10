@@ -202,7 +202,7 @@ export default function Home() {
         setExistingUrl(e.target.value);
           loadExistingFeed(e.target.value);
       }}
-      placeholder="https://yoursite.com/api/merge?feeds=..."
+      placeholder="https://rssrssrssrss.com/api/merge?feeds=..."
       className="flex-1 px-3 py-2 text-sm text-gray-700 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 bg-white"
     />
   </div>

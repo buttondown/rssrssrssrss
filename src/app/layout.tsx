@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://rssrssrss.vercel.app'),
+  metadataBase: new URL('https://rssrssrssrss.com'),
   title: "rssrssrss - Combine Multiple RSS Feeds into One",
   description: "Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.",
   keywords: ["RSS", "feed", "merge", "combine", "aggregator", "news", "blog", "content", "curation"],
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://rssrssrss.vercel.app/',
+    url: 'https://rssrssrssrss.com/',
     siteName: 'rssrssrss',
     title: 'rssrssrss - Combine Multiple RSS Feeds into One',
     description: 'Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.',
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     images: ['/og-image.png'],
   },
   alternates: {
-    canonical: 'https://rssrssrss.vercel.app/',
+    canonical: 'https://rssrssrssrss.com/',
   },
   category: 'Technology',
 };
@@ -70,7 +70,7 @@ export default function RootLayout({
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "rssrssrss",
-    "url": "https://rssrssrss.vercel.app/",
+    "url": "https://rssrssrssrss.com/",
     "description": "Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.",
     "applicationCategory": "WebApplication",
     "operatingSystem": "Web Browser",

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#2563eb"/>
+  <!-- Small dot at bottom left -->
+  <circle cx="8" cy="24" r="2" fill="white"/>
+  <!-- First arc -->
+  <path d="M8 16c4.4 0 8 3.6 8 8h2c0-5.5-4.5-10-10-10v2z" fill="white"/>
+  <!-- Second arc -->
+  <path d="M8 8c8.8 0 16 7.2 16 16h2C26 14.3 17.7 6 8 6v2z" fill="white"/>
+</svg>
