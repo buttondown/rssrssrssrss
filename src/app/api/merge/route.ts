@@ -27,6 +27,57 @@ type CustomFeed = {
 	[key: string]: any; // For additional fields from RSS parser
 };
 
+// JSON Feed types
+type JSONFeedItem = {
+	id: string;
+	url?: string;
+	external_url?: string;
+	title?: string;
+	content_html?: string;
+	content_text?: string;
+	summary?: string;
+	image?: string;
+	banner_image?: string;
+	date_published?: string;
+	date_modified?: string;
+	author?: {
+		name?: string;
+		url?: string;
+		avatar?: string;
+	};
+	tags?: string[];
+	language?: string;
+	attachments?: Array<{
+		url: string;
+		mime_type: string;
+		title?: string;
+		size_in_bytes?: number;
+		duration_in_seconds?: number;
+	}>;
+	[key: string]: any;
+};
+
+type JSONFeed = {
+	version: string;
+	title: string;
+	home_page_url?: string;
+	feed_url?: string;
+	description?: string;
+	user_comment?: string;
+	next_url?: string;
+	icon?: string;
+	favicon?: string;
+	authors?: Array<{
+		name?: string;
+		url?: string;
+		avatar?: string;
+	}>;
+	language?: string;
+	expired?: boolean;
+	items: JSONFeedItem[];
+	[key: string]: any;
+};
+
 // Initialize the RSS parser
 const parser = new Parser({
 	customFields: {
@@ -36,6 +87,55 @@ const parser = new Parser({
 		],
 	},
 });
+
+// Helper functions for JSON Feed detection and parsing
+async function isJSONFeed(url: string): Promise<boolean> {
+	try {
+		const response = await fetch(url, { 
+			headers: { 'Accept': 'application/json, application/feed+json, */*' } 
+		});
+		const contentType = response.headers.get('content-type') || '';
+		
+		if (contentType.includes('application/feed+json') || contentType.includes('application/json')) {
+			const text = await response.text();
+			const data = JSON.parse(text);
+			return data.version && data.version.includes('jsonfeed.org');
+		}
+		
+		return false;
+	} catch {
+		return false;
+	}
+}
+
+async function parseJSONFeed(url: string): Promise<CustomFeed> {
+	const response = await fetch(url, { 
+		headers: { 'Accept': 'application/json, application/feed+json, */*' } 
+	});
+	const jsonFeed: JSONFeed = await response.json();
+	
+	// Convert JSON Feed items to CustomItem format
+	const items: CustomItem[] = jsonFeed.items.map(item => ({
+		title: item.title,
+		link: item.url || item.external_url,
+		pubDate: item.date_published,
+		content: item.content_html,
+		contentSnippet: item.content_text || item.summary,
+		creator: item.author?.name,
+		isoDate: item.date_published,
+		guid: item.id,
+		categories: item.tags,
+		sourceFeedTitle: jsonFeed.title,
+		sourceFeedUrl: url,
+	}));
+	
+	return {
+		title: jsonFeed.title,
+		description: jsonFeed.description,
+		link: jsonFeed.home_page_url,
+		items,
+	};
+}
 
 // Helper functions for XML generation
 function escapeXml(unsafe: string): string {
@@ -51,10 +151,34 @@ function wrapCDATA(content: string): string {
 	return `<![CDATA[${content}]]>`;
 }
 
+// Helper function to generate JSON Feed output
+function generateJSONFeed(mergedFeed: CustomFeed, requestUrl: string): string {
+	const jsonFeed: JSONFeed = {
+		version: "https://jsonfeed.org/version/1.1",
+		title: mergedFeed.title || "Merged RSS Feed!",
+		description: mergedFeed.description,
+		home_page_url: mergedFeed.link,
+		feed_url: requestUrl,
+		items: mergedFeed.items.map(item => ({
+			id: item.guid || item.link || crypto.randomUUID(),
+			url: item.link,
+			title: item.title,
+			content_html: item.content,
+			content_text: item.contentSnippet,
+			date_published: item.isoDate || item.pubDate,
+			author: item.creator ? { name: item.creator } : undefined,
+			tags: item.categories,
+		}))
+	};
+	
+	return JSON.stringify(jsonFeed, null, 2);
+}
+
 export async function GET(request: NextRequest) {
 	// Get the URL parameters
 	const searchParams = request.nextUrl.searchParams;
 	let urls: string[] = [];
+	const format = searchParams.get("format") || "rss"; // Default to RSS
 
 	// Check for compressed feeds parameter first
 	const compressedFeeds = searchParams.get("feeds");
@@ -86,18 +210,24 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	// Fetch and parse all RSS feeds in parallel
+	// Fetch and parse all feeds (RSS and JSON) in parallel
 	const feedPromises = urls.map(async (url) => {
 		try {
-			const feed = await parser.parseURL(url);
-			return {
-				...feed,
-				items: feed.items.map((item) => ({
-					...item,
-					sourceFeedTitle: feed.title,
-					sourceFeedUrl: url,
-				})),
-			};
+			// Check if it's a JSON Feed first
+			if (await isJSONFeed(url)) {
+				return await parseJSONFeed(url);
+			} else {
+				// Fall back to RSS parsing
+				const feed = await parser.parseURL(url);
+				return {
+					...feed,
+					items: feed.items.map((item) => ({
+						...item,
+						sourceFeedTitle: feed.title,
+						sourceFeedUrl: url,
+					})),
+				};
+			}
 		} catch (error) {
 			console.error(`Error fetching feed from ${url}:`, error);
 			return { items: [] };
@@ -132,7 +262,19 @@ export async function GET(request: NextRequest) {
 		items: allItems.slice(0, 100),
 	};
 
-	// Generate XML using string concatenation
+	// Check if JSON format is requested
+	if (format === "json" || format === "jsonfeed") {
+		const jsonOutput = generateJSONFeed(mergedFeed, request.nextUrl.toString());
+		
+		return new NextResponse(jsonOutput, {
+			headers: {
+				"Content-Type": "application/feed+json; charset=utf-8",
+				"Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
+			},
+		});
+	}
+
+	// Generate XML using string concatenation (default RSS output)
 	const items = mergedFeed.items
 		.map((item) => {
 			let itemXml = "    <item>\n";
