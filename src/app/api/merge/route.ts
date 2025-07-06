@@ -284,9 +284,11 @@ export async function GET(request: NextRequest) {
       let itemXml = "    <item>\n";
 
       // Title
-      itemXml += `      <title>${escapeXml(
-        item.title || "Untitled"
-      )}</title>\n`;
+      if (item.title) {
+        itemXml += `      <title>${escapeXml(item.title)}</title>\n`;
+      } else {
+        itemXml += `      <title />\n`;
+      }
 
       // Link
       if (item.link) {

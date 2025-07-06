@@ -381,7 +381,7 @@ export default function Home() {
 													rel="noopener noreferrer"
 													className="hover:underline text-blue-600"
 												>
-													{item.title || "Untitled"}
+													{item.title || "«No Title Defined»"}
 												</a>
 											</h4>
 											<div className="flex-1">
@@ -559,7 +559,7 @@ export default function Home() {
 												rel="noopener noreferrer"
 												className="hover:underline text-blue-600"
 											>
-												{item.title || "Untitled"}
+												{item.title || "«No Title Defined»"}
 											</a>
 										</h4>
 										<div className="flex-1">
