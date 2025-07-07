@@ -12,6 +12,33 @@ type FeedItem = {
 	image?: string;
 };
 
+const SAMPLE_FEEDS: { name: string; feeds: string[] }[] = [
+	{
+		name: "Tech News Bundle",
+		feeds: [
+			"https://hnrss.org/frontpage",
+			"https://feeds.arstechnica.com/arstechnica/features",
+			"https://www.theverge.com/rss/index.xml",
+		],
+	},
+	{
+		name: "Development Blogs",
+		feeds: [
+			"https://overreacted.io/rss.xml",
+			"https://jvns.ca/atom.xml",
+			"https://kentcdodds.com/blog/rss.xml",
+		],
+	},
+	{
+		name: "Design & UX",
+		feeds: [
+			"https://www.smashingmagazine.com/feed/",
+			"https://alistapart.com/main/feed/",
+			"https://www.nngroup.com/feed/rss/",
+		],
+	},
+];
+
 export default function Home() {
 	const [feedList, setFeedList] = useState<string>("");
 	const [mergedUrl, setMergedUrl] = useState<string>("");
@@ -19,34 +46,6 @@ export default function Home() {
 	const [previewItems, setPreviewItems] = useState<FeedItem[]>([]);
 	const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 	const [existingUrl, setExistingUrl] = useState<string>("");
-
-	const sampleFeeds = [
-		{
-			name: "Tech News Bundle",
-			feeds: [
-				"https://hnrss.org/frontpage",
-				"https://feeds.arstechnica.com/arstechnica/features",
-				"https://www.theverge.com/rss/index.xml",
-			],
-		},
-		{
-			name: "Development Blogs",
-			feeds: [
-				"https://overreacted.io/rss.xml",
-				"https://jvns.ca/atom.xml",
-				"https://kentcdodds.com/blog/rss.xml",
-			],
-		},
-		{
-			name: "Design & UX",
-			feeds: [
-				"https://www.smashingmagazine.com/feed/",
-				"https://alistapart.com/main/feed/",
-				"https://www.nngroup.com/feed/rss/",
-			],
-		},
-	];
-
 	const getFeedsFromList = () => {
 		return feedList
 			.split("\n")
@@ -443,7 +442,7 @@ export default function Home() {
 										<p className="text-xs text-gray-600 font-semibold uppercase tracking-wider">
 											Try a sample bundle:
 										</p>
-										{sampleFeeds.map((bundle, index) => (
+										{SAMPLE_FEEDS.map((bundle, index) => (
 											<button
 												key={index}
 												onClick={() => setFeedList(bundle.feeds.join("\n"))}
@@ -621,7 +620,7 @@ export default function Home() {
 									<p className="text-xs text-gray-600 font-semibold uppercase tracking-wider">
 										Try a sample bundle:
 									</p>
-									{sampleFeeds.map((bundle, index) => (
+									{SAMPLE_FEEDS.map((bundle, index) => (
 										<button
 											key={index}
 											onClick={() => setFeedList(bundle.feeds.join("\n"))}

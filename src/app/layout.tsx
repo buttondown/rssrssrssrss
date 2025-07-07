@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
 	metadataBase: new URL("https://rssrssrssrss.com"),
-	title: "rssrssrss - Combine Multiple RSS Feeds into One",
+	title: "rssrssrssrss - Combine Multiple RSS Feeds into One",
 	description:
 		"Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.",
 	keywords: [
@@ -47,8 +47,8 @@ export const metadata: Metadata = {
 		type: "website",
 		locale: "en_US",
 		url: "https://rssrssrssrss.com/",
-		siteName: "rssrssrss",
-		title: "rssrssrss - Combine Multiple RSS Feeds into One",
+		siteName: "rssrssrssrss",
+		title: "rssrssrssrss - Combine Multiple RSS Feeds into One",
 		description:
 			"Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.",
 		images: [
@@ -56,15 +56,15 @@ export const metadata: Metadata = {
 				url: "/og-image.png",
 				width: 1200,
 				height: 630,
-				alt: "rssrssrss - RSS Feed Merger Tool",
+				alt: "rssrssrssrss - RSS Feed Merger Tool",
 			},
 		],
 	},
 	twitter: {
 		card: "summary_large_image",
-		site: "@rssrssrss",
-		creator: "@rssrssrss",
-		title: "rssrssrss - Combine Multiple RSS Feeds into One",
+		site: "@rssrssrssrss",
+		creator: "@rssrssrssrss",
+		title: "rssrssrssrss - Combine Multiple RSS Feeds into One",
 		description:
 			"Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.",
 		images: ["/og-image.png"],
@@ -83,7 +83,7 @@ export default function RootLayout({
 	const structuredData = {
 		"@context": "https://schema.org",
 		"@type": "WebApplication",
-		name: "rssrssrss",
+		name: "rssrssrssrss",
 		url: "https://rssrssrssrss.com/",
 		description:
 			"Free tool to merge and combine multiple RSS feeds into a single unified feed. Perfect for news aggregation, blog following, and content curation.",
