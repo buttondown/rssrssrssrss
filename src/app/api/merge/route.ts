@@ -177,6 +177,15 @@ function generateJSONFeed(mergedFeed: CustomFeed, requestUrl: string): string {
   return JSON.stringify(jsonFeed, null, 2);
 }
 
+const HEADERS = {
+  "Content-Type": "application/rss+xml; charset=utf-8",
+  "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
+};
+
+export const encodeContent = (content: string) => {
+  return content.replace(/[^\x20-\x7E\n\r\t]/g, "");
+};
+
 export async function GET(request: NextRequest) {
   // Get the URL parameters
   const searchParams = request.nextUrl.searchParams;
@@ -203,7 +212,7 @@ export async function GET(request: NextRequest) {
               "The payload you've pasted is all lowercase, which is a common issue with Safari copy/paste. Please try again with a different browser.",
             payload: compressedFeeds,
           },
-          { status: 400 },
+          { status: 400 }
         );
       }
       return NextResponse.json(
@@ -212,7 +221,7 @@ export async function GET(request: NextRequest) {
             "RSSRSSRSSRSS cannot parse that payload. Are you sure you copied/pasted it correctly?",
           payload: compressedFeeds,
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
   } else {
@@ -224,7 +233,7 @@ export async function GET(request: NextRequest) {
   if (!urls || urls.length === 0) {
     return NextResponse.json(
       { error: "No RSS feed URLs provided" },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -285,10 +294,7 @@ export async function GET(request: NextRequest) {
     const jsonOutput = generateJSONFeed(mergedFeed, request.nextUrl.toString());
 
     return new NextResponse(jsonOutput, {
-      headers: {
-        "Content-Type": "application/feed+json; charset=utf-8",
-        "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
-      },
+      headers: HEADERS,
     });
   }
 
@@ -311,7 +317,7 @@ export async function GET(request: NextRequest) {
 
       // GUID
       itemXml += `      <guid>${escapeXml(
-        item.guid || item.link || "",
+        item.guid || item.link || ""
       )}</guid>\n`;
 
       // Publication date
@@ -324,19 +330,20 @@ export async function GET(request: NextRequest) {
       // Creator (DC namespace)
       if (item.creator) {
         itemXml += `      <dc:creator>${wrapCDATA(
-          item.creator,
+          item.creator
         )}</dc:creator>\n`;
       }
 
       // Content or description
       if (item.content) {
-        const cleanContent = item.content.replace(/[^\x20-\x7E\n\r\t]/g, "");
+        // Note that we don't need to encode this because we're wrapping it in CData.
+        // Per #11, encoding it just removes smart quotes and things of that nature unnecessarily.
         itemXml += `      <content:encoded>${wrapCDATA(
-          cleanContent,
+          item.content
         )}</content:encoded>\n`;
       } else if (item.contentSnippet) {
         itemXml += `      <description>${escapeXml(
-          item.contentSnippet,
+          encodeContent(item.contentSnippet)
         )}</description>\n`;
       }
 
@@ -350,7 +357,7 @@ export async function GET(request: NextRequest) {
       // Source information
       if (item.sourceFeedTitle && item.sourceFeedUrl) {
         itemXml += `      <source url="${escapeXml(
-          item.sourceFeedUrl,
+          item.sourceFeedUrl
         )}">${escapeXml(item.sourceFeedTitle)}</source>\n`;
       }
 
@@ -364,7 +371,7 @@ export async function GET(request: NextRequest) {
   <channel>
     <title>${escapeXml(mergedFeed.title || "Merged RSS Feed!")}</title>
     <description>${escapeXml(
-      mergedFeed.description || "Combined feed from multiple sources",
+      mergedFeed.description || "Combined feed from multiple sources"
     )}</description>
     <link>${escapeXml(mergedFeed.link || request.nextUrl.toString())}</link>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
@@ -374,9 +381,6 @@ ${items}  </channel>
 
   // Return the XML response
   return new NextResponse(xml, {
-    headers: {
-      "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
-    },
+    headers: HEADERS,
   });
 }
