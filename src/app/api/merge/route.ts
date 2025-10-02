@@ -1,4 +1,5 @@
 import LZString from "lz-string";
+import { encodeContent } from "@/utils/encoding";
 import { type NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
 
@@ -182,10 +183,6 @@ const HEADERS = {
   "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
 };
 
-export const encodeContent = (content: string) => {
-  return content.replace(/[^\x20-\x7E\n\r\t]/g, "");
-};
-
 export async function GET(request: NextRequest) {
   // Get the URL parameters
   const searchParams = request.nextUrl.searchParams;
@@ -248,7 +245,7 @@ export async function GET(request: NextRequest) {
         const feed = await parser.parseURL(url);
         return {
           ...feed,
-          items: feed.items.map((item) => ({
+          items: feed.items.map((item: CustomItem) => ({
             ...item,
             sourceFeedTitle: feed.title,
             sourceFeedUrl: url,
