@@ -294,7 +294,10 @@ export async function GET(request: NextRequest) {
     const jsonOutput = generateJSONFeed(mergedFeed, request.nextUrl.toString());
 
     return new NextResponse(jsonOutput, {
-      headers: HEADERS,
+      headers: {
+        "Content-Type": "application/feed+json; charset=utf-8",
+        "Cache-Control": "max-age=600, s-maxage=600",
+      },
     });
   }
 
