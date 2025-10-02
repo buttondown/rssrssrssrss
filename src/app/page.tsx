@@ -115,7 +115,7 @@ export default function Home() {
 
       const text = (await response.text()).replaceAll(
         "content:encoded",
-        "content"
+        "content",
       );
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(text, "text/xml");
@@ -144,7 +144,7 @@ export default function Home() {
 
       setPreviewItems(items);
       setMergedUrl(
-        `${window.location.origin}/api/merge?feeds=${compressedFeeds}`
+        `${window.location.origin}/api/merge?feeds=${compressedFeeds}`,
       );
     } catch (error) {
       console.error("Error fetching preview:", error);
@@ -295,7 +295,7 @@ export default function Home() {
                     {previewItems
                       .map((item) => item.link?.split("/")[2])
                       .filter(
-                        (domain, index, self) => self.indexOf(domain) === index
+                        (domain, index, self) => self.indexOf(domain) === index,
                       )
                       .map((domain, index) => (
                         <img
@@ -473,7 +473,7 @@ export default function Home() {
                   {previewItems
                     .map((item) => item.link?.split("/")[2])
                     .filter(
-                      (domain, index, self) => self.indexOf(domain) === index
+                      (domain, index, self) => self.indexOf(domain) === index,
                     )
                     .map((domain, index) => (
                       <img
