@@ -1,84 +1,9 @@
 import LZString from "lz-string";
+import { encodeContent } from "@/lib/encoding";
 import { type NextRequest, NextResponse } from "next/server";
 import Parser from "rss-parser";
+import { CustomFeed, CustomItem, JSONFeed } from "@/lib/types";
 
-// Types for RSS items
-type CustomItem = {
-  title?: string;
-  link?: string;
-  pubDate?: string;
-  content?: string;
-  contentSnippet?: string;
-  creator?: string;
-  isoDate?: string;
-  guid?: string;
-  categories?: string[];
-  // Source tracking
-  sourceFeedTitle?: string;
-  sourceFeedUrl?: string;
-  [key: string]: any; // For additional fields from RSS parser
-};
-
-type CustomFeed = {
-  title?: string;
-  description?: string;
-  link?: string;
-  items: CustomItem[];
-  [key: string]: any; // For additional fields from RSS parser
-};
-
-// JSON Feed types
-type JSONFeedItem = {
-  id: string;
-  url?: string;
-  external_url?: string;
-  title?: string;
-  content_html?: string;
-  content_text?: string;
-  summary?: string;
-  image?: string;
-  banner_image?: string;
-  date_published?: string;
-  date_modified?: string;
-  author?: {
-    name?: string;
-    url?: string;
-    avatar?: string;
-  };
-  tags?: string[];
-  language?: string;
-  attachments?: Array<{
-    url: string;
-    mime_type: string;
-    title?: string;
-    size_in_bytes?: number;
-    duration_in_seconds?: number;
-  }>;
-  [key: string]: any;
-};
-
-type JSONFeed = {
-  version: string;
-  title: string;
-  home_page_url?: string;
-  feed_url?: string;
-  description?: string;
-  user_comment?: string;
-  next_url?: string;
-  icon?: string;
-  favicon?: string;
-  authors?: Array<{
-    name?: string;
-    url?: string;
-    avatar?: string;
-  }>;
-  language?: string;
-  expired?: boolean;
-  items: JSONFeedItem[];
-  [key: string]: any;
-};
-
-// Initialize the RSS parser
 const parser = new Parser({
   customFields: {
     item: [
@@ -87,6 +12,9 @@ const parser = new Parser({
     ],
   },
 });
+
+const GENERATOR = "rssrssrssrss";
+const FEED_TITLE = "Merged Feed";
 
 // Helper functions for JSON Feed detection and parsing
 async function isJSONFeed(url: string): Promise<boolean> {
@@ -158,7 +86,7 @@ function wrapCDATA(content: string): string {
 function generateJSONFeed(mergedFeed: CustomFeed, requestUrl: string): string {
   const jsonFeed: JSONFeed = {
     version: "https://jsonfeed.org/version/1.1",
-    title: mergedFeed.title || "Merged RSS Feed!",
+    title: mergedFeed.title || FEED_TITLE,
     description: mergedFeed.description,
     home_page_url: mergedFeed.link,
     feed_url: requestUrl,
@@ -176,6 +104,11 @@ function generateJSONFeed(mergedFeed: CustomFeed, requestUrl: string): string {
 
   return JSON.stringify(jsonFeed, null, 2);
 }
+
+const HEADERS = {
+  "Content-Type": "application/rss+xml; charset=utf-8",
+  "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
+};
 
 export async function GET(request: NextRequest) {
   // Get the URL parameters
@@ -203,16 +136,16 @@ export async function GET(request: NextRequest) {
               "The payload you've pasted is all lowercase, which is a common issue with Safari copy/paste. Please try again with a different browser.",
             payload: compressedFeeds,
           },
-          { status: 400 },
+          { status: 400 }
         );
       }
       return NextResponse.json(
         {
           error:
-            "RSSRSSRSSRSS cannot parse that payload. Are you sure you copied/pasted it correctly?",
+            `${GENERATOR} cannot parse that payload. Are you sure you copied/pasted it correctly?`,
           payload: compressedFeeds,
         },
-        { status: 400 },
+        { status: 400 }
       );
     }
   } else {
@@ -224,7 +157,7 @@ export async function GET(request: NextRequest) {
   if (!urls || urls.length === 0) {
     return NextResponse.json(
       { error: "No RSS feed URLs provided" },
-      { status: 400 },
+      { status: 400 }
     );
   }
 
@@ -239,7 +172,7 @@ export async function GET(request: NextRequest) {
         const feed = await parser.parseURL(url);
         return {
           ...feed,
-          items: feed.items.map((item) => ({
+          items: feed.items.map((item: CustomItem) => ({
             ...item,
             sourceFeedTitle: feed.title,
             sourceFeedUrl: url,
@@ -271,7 +204,7 @@ export async function GET(request: NextRequest) {
 
   // Create a merged feed
   const mergedFeed: CustomFeed = {
-    title: "Merged RSS Feed!",
+    title: FEED_TITLE,
     description: `Combined feed from ${feeds
       .filter((f) => f.title)
       .map((f) => f.title)
@@ -287,7 +220,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(jsonOutput, {
       headers: {
         "Content-Type": "application/feed+json; charset=utf-8",
-        "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
+        "Cache-Control": "max-age=600, s-maxage=600",
       },
     });
   }
@@ -311,7 +244,7 @@ export async function GET(request: NextRequest) {
 
       // GUID
       itemXml += `      <guid>${escapeXml(
-        item.guid || item.link || "",
+        item.guid || item.link || ""
       )}</guid>\n`;
 
       // Publication date
@@ -324,19 +257,20 @@ export async function GET(request: NextRequest) {
       // Creator (DC namespace)
       if (item.creator) {
         itemXml += `      <dc:creator>${wrapCDATA(
-          item.creator,
+          item.creator
         )}</dc:creator>\n`;
       }
 
       // Content or description
       if (item.content) {
-        const cleanContent = item.content.replace(/[^\x20-\x7E\n\r\t]/g, "");
+        // Note that we don't need to encode this because we're wrapping it in CData.
+        // Per #11, encoding it just removes smart quotes and things of that nature unnecessarily.
         itemXml += `      <content:encoded>${wrapCDATA(
-          cleanContent,
+          item.content
         )}</content:encoded>\n`;
       } else if (item.contentSnippet) {
         itemXml += `      <description>${escapeXml(
-          item.contentSnippet,
+          encodeContent(item.contentSnippet)
         )}</description>\n`;
       }
 
@@ -350,7 +284,7 @@ export async function GET(request: NextRequest) {
       // Source information
       if (item.sourceFeedTitle && item.sourceFeedUrl) {
         itemXml += `      <source url="${escapeXml(
-          item.sourceFeedUrl,
+          item.sourceFeedUrl
         )}">${escapeXml(item.sourceFeedTitle)}</source>\n`;
       }
 
@@ -362,21 +296,18 @@ export async function GET(request: NextRequest) {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>${escapeXml(mergedFeed.title || "Merged RSS Feed!")}</title>
+    <title>${escapeXml(mergedFeed.title || FEED_TITLE)}</title>
     <description>${escapeXml(
-      mergedFeed.description || "Combined feed from multiple sources",
+      mergedFeed.description || "Combined feed from multiple sources"
     )}</description>
     <link>${escapeXml(mergedFeed.link || request.nextUrl.toString())}</link>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
-    <generator>rssrssrss</generator>
+    <generator>${GENERATOR}</generator>
 ${items}  </channel>
 </rss>`;
 
   // Return the XML response
   return new NextResponse(xml, {
-    headers: {
-      "Content-Type": "application/rss+xml; charset=utf-8",
-      "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
-    },
+    headers: HEADERS,
   });
 }
