@@ -166,51 +166,82 @@ export async function GET(request: NextRequest) {
     try {
       // Check if it's a JSON Feed first
       if (await isJSONFeed(url)) {
-        return await parseJSONFeed(url);
+        return { feed: await parseJSONFeed(url), error: null, url };
       } else {
         // Fall back to RSS parsing
         const feed = await parser.parseURL(url);
         return {
-          ...feed,
-          items: feed.items.map((item: CustomItem) => ({
-            ...item,
-            sourceFeedTitle: feed.title,
-            sourceFeedUrl: url,
-          })),
+          feed: {
+            ...feed,
+            items: feed.items.map((item: CustomItem) => ({
+              ...item,
+              sourceFeedTitle: feed.title,
+              sourceFeedUrl: url,
+            })),
+          },
+          error: null,
+          url,
         };
       }
     } catch (error) {
       console.error(`Error fetching feed from ${url}:`, error);
-      return { items: [] };
+      return {
+        feed: null,
+        error: error instanceof Error ? error.message : String(error),
+        url,
+      };
     }
   });
 
-  const feeds = await Promise.all(feedPromises);
+  const results = await Promise.all(feedPromises);
 
-  // Combine all items into a single array
+  // Combine all items into a single array, and collect failed feeds
   const allItems: CustomItem[] = [];
-  feeds.forEach((feed) => {
-    if (feed.items && feed.items.length > 0) {
+  const failedFeeds: Array<{ url: string; error: string }> = [];
+
+  results.forEach(({ feed, error, url }) => {
+    if (error) {
+      failedFeeds.push({ url, error });
+    } else if (feed && feed.items && feed.items.length > 0) {
       allItems.push(...feed.items);
     }
   });
 
-  // Sort items by date (newest first)
+  // Create error items for failed feeds and add them to the beginning
+  const errorItems: CustomItem[] = failedFeeds.map((failed) => ({
+    title: `⚠️ Failed to load feed: ${failed.url}`,
+    link: failed.url,
+    pubDate: new Date().toUTCString(),
+    isoDate: new Date().toISOString(),
+    contentSnippet: `Error: ${failed.error}`,
+    content: `<p>Failed to load this feed:</p><p><code>${escapeXml(failed.url)}</code></p><p>Error: ${escapeXml(failed.error)}</p>`,
+    guid: `error-${failed.url}-${Date.now()}`,
+  }));
+
+  // Sort regular items by date (newest first), keep error items at top
   allItems.sort((a, b) => {
     const dateA = a.isoDate ? new Date(a.isoDate) : new Date(a.pubDate || 0);
     const dateB = b.isoDate ? new Date(b.isoDate) : new Date(b.pubDate || 0);
     return dateB.getTime() - dateA.getTime();
   });
 
+  // Combine error items (at the top) with sorted regular items
+  const allItemsWithErrors: CustomItem[] = [...errorItems, ...allItems];
+
+  // Get feed titles from successful feeds for the description
+  const successfulFeedTitles = results
+    .filter(({ feed }) => feed && feed.title)
+    .map(({ feed }) => feed?.title)
+    .filter(Boolean) as string[];
+
   // Create a merged feed
   const mergedFeed: CustomFeed = {
     title: FEED_TITLE,
-    description: `Combined feed from ${feeds
-      .filter((f) => f.title)
-      .map((f) => f.title)
-      .join(", ")}`,
+    description: `Combined feed from ${successfulFeedTitles.join(", ")}${
+      failedFeeds.length > 0 ? ` (${failedFeeds.length} feed(s) failed to load)` : ""
+    }`,
     link: request.nextUrl.toString(),
-    items: allItems.slice(0, 100),
+    items: allItemsWithErrors.slice(0, 100),
   };
 
   // Check if JSON format is requested
