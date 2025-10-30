@@ -106,6 +106,14 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/rss+xml");
 
+      // Verify the merged feed title is present
+      expect(text).toContain("Merged Feed");
+
+      // Verify error entry for failed feed appears
+      expect(text).toContain("⚠️ Failed to load feed");
+      expect(text).toContain("http://localhost:9999/feed3.xml");
+      expect(text).toContain("Status code 403");
+
       // Verify items from feed 1 are present
       expect(text).toContain("Article 1 from Feed 1");
       expect(text).toContain("Article 2 from Feed 1");
@@ -115,13 +123,12 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
       expect(text).toContain("Article 1 from Feed 2");
       expect(text).toContain("Feed 2");
 
-      // Verify the merged feed title is present
-      expect(text).toContain("Merged Feed");
-
-      // Verify that items are sorted by date (newest first)
-      const feed2Index = text.indexOf("Article 1 from Feed 2");
+      // Verify error entry appears before regular items (at the top)
+      const errorIndex = text.indexOf("⚠️ Failed to load feed");
       const feed1Index = text.indexOf("Article 1 from Feed 1");
-      expect(feed2Index).toBeLessThan(feed1Index);
+      const feed2Index = text.indexOf("Article 1 from Feed 2");
+      expect(errorIndex).toBeLessThan(feed1Index);
+      expect(errorIndex).toBeLessThan(feed2Index);
     } finally {
       server.stop();
     }
