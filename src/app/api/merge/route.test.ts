@@ -93,6 +93,10 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
     });
 
     try {
+      // Suppress console.error output for expected 403 error
+      const originalError = console.error;
+      console.error = () => {};
+
       const baseUrl = new URL("http://localhost:3000/api/merge");
       baseUrl.searchParams.append("url", "http://localhost:9999/feed1.xml");
       baseUrl.searchParams.append("url", "http://localhost:9999/feed2.xml");
@@ -101,6 +105,9 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
       const request = new NextRequest(baseUrl);
       const response = await GET(request);
       const text = await response.text();
+
+      // Restore console.error
+      console.error = originalError;
 
       // Verify response is valid RSS
       expect(response.status).toBe(200);

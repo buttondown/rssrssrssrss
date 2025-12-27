@@ -1,0 +1,135 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`rss - XML to final output should parse XML feed and generate RSS output 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Merged Feed</title>
+    <description>Combined feed from Feed 1, Feed 2</description>
+    <link>http://example.com/merged</link>
+    <lastBuildDate>NORMALIZED_DATE</lastBuildDate>
+    <generator>rssrssrssrss</generator>
+    <item>
+      <title>Article 1 from Feed 2</title>
+      <link>http://example2.com/article1</link>
+      <guid>http://example2.com/article1</guid>
+      <pubDate>Mon, 29 Oct 2025 15:00:00 GMT</pubDate>
+      <content:encoded><![CDATA[Content of feed 2 article 1]]></content:encoded>
+      <source url="http://example2.com/feed2">Feed 2</source>
+    </item>
+    <item>
+      <title>Article 1 from Feed 1</title>
+      <link>http://example.com/article1</link>
+      <guid>http://example.com/article1</guid>
+      <pubDate>Mon, 28 Oct 2025 10:00:00 GMT</pubDate>
+      <content:encoded><![CDATA[Content of article 1]]></content:encoded>
+      <source url="http://example.com/feed1">Feed 1</source>
+    </item>
+    <item>
+      <title>Article 2 from Feed 1</title>
+      <link>http://example.com/article2</link>
+      <guid>http://example.com/article2</guid>
+      <pubDate>Sun, 27 Oct 2025 10:00:00 GMT</pubDate>
+      <content:encoded><![CDATA[Content of article 2]]></content:encoded>
+      <source url="http://example.com/feed1">Feed 1</source>
+    </item>
+  </channel>
+</rss>"
+`;
+
+exports[`rss - XML to final output should parse XML feed and generate JSON Feed output 1`] = `
+"{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Merged Feed",
+  "description": "Combined feed from Test Feed",
+  "home_page_url": "http://example.com/merged",
+  "feed_url": "http://example.com/merged",
+  "items": [
+    {
+      "id": "http://example.com/article",
+      "url": "http://example.com/article",
+      "title": "Test Article",
+      "content_html": "Test content",
+      "content_text": "Test content",
+      "date_published": "2025-10-28T10:00:00.000Z"
+    }
+  ]
+}"
+`;
+
+exports[`rss - XML to final output should handle failed feeds in merge 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Merged Feed</title>
+    <description>Combined feed from Valid Feed (1 feed(s) failed to load)</description>
+    <link>http://example.com/merged</link>
+    <lastBuildDate>NORMALIZED_DATE</lastBuildDate>
+    <generator>rssrssrssrss</generator>
+    <item>
+      <title>⚠️ Failed to load feed: http://example.com/failed</title>
+      <link>http://example.com/failed</link>
+      <guid>error-NORMALIZED_TIMESTAMP</guid>
+      <pubDate>NORMALIZED_DATE</pubDate>
+      <content:encoded><![CDATA[<p>Failed to load this feed:</p><p><code>http://example.com/failed</code></p><p>Error: Failed to fetch feed</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Valid Article</title>
+      <guid></guid>
+      <pubDate>Mon, 28 Oct 2025 10:00:00 GMT</pubDate>
+      <source url="http://example.com/valid">Valid Feed</source>
+    </item>
+  </channel>
+</rss>"
+`;
+
+exports[`rss - XML to final output should parse Aditya Athalye's Eval/Apply Blog feed 1`] = `
+"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Merged Feed</title>
+    <description>Combined feed from Aditya Athalye&apos;s Eval/Apply Blog</description>
+    <link>http://example.com/merged</link>
+    <lastBuildDate>NORMALIZED_DATE</lastBuildDate>
+    <generator>rssrssrssrss</generator>
+    <item>
+      <title>Understanding not just Clojure&apos;s comp function by re-implementing it</title>
+      <link>https://www.evalapply.org/posts/lessons-from-reimplementing-clojure-comp-function/index.html</link>
+      <guid>https://www.evalapply.org/posts/lessons-from-reimplementing-clojure-comp-function/</guid>
+      <pubDate>Fri, 08 Aug 2025 00:00:00 +0000</pubDate>
+      <content:encoded><![CDATA[Because I realised thinking like this is not obvious to Clojure newcomers, especially those having non-FP first languages. Because I was there too, all those moons ago! Feat. a salty footnote about the misdirected rancour popularly heaped upon CSS (yes, Cascading Style Sheets), triggered by that fact that 'comp' is a combinator, and I think they should have called it Combinatory Styling System.]]></content:encoded>
+      <category>clojure</category>
+      <category>functional_programming</category>
+      <category>howto</category>
+      <category>riff</category>
+      <source url="https://www.evalapply.org/index.xml">Aditya Athalye&apos;s Eval/Apply Blog</source>
+    </item>
+  </channel>
+</rss>"
+`;
+
+exports[`rss - XML to final output should parse Aditya Athalye's Eval/Apply Blog feed 2`] = `
+"{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Merged Feed",
+  "description": "Combined feed from Aditya Athalye's Eval/Apply Blog",
+  "home_page_url": "http://example.com/merged",
+  "feed_url": "http://example.com/merged",
+  "items": [
+    {
+      "id": "https://www.evalapply.org/posts/lessons-from-reimplementing-clojure-comp-function/",
+      "url": "https://www.evalapply.org/posts/lessons-from-reimplementing-clojure-comp-function/index.html",
+      "title": "Understanding not just Clojure's comp function by re-implementing it",
+      "content_html": "Because I realised thinking like this is not obvious to Clojure newcomers, especially those having non-FP first languages. Because I was there too, all those moons ago! Feat. a salty footnote about the misdirected rancour popularly heaped upon CSS (yes, Cascading Style Sheets), triggered by that fact that 'comp' is a combinator, and I think they should have called it Combinatory Styling System.",
+      "content_text": "Because I realised thinking like this is not obvious to Clojure newcomers, especially those having non-FP first languages. Because I was there too, all those moons ago! Feat. a salty footnote about the misdirected rancour popularly heaped upon CSS (yes, Cascading Style Sheets), triggered by that fact that 'comp' is a combinator, and I think they should have called it Combinatory Styling System.",
+      "date_published": "2025-08-08T00:00:00.000Z",
+      "tags": [
+        "clojure",
+        "functional_programming",
+        "howto",
+        "riff"
+      ]
+    }
+  ]
+}"
+`;
