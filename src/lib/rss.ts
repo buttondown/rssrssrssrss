@@ -327,7 +327,8 @@ export function generateRSS(
           const categoryValue =
             typeof category === "string"
               ? category
-              : category._ || String(category);
+              : // @ts-expect-error - category._ is not typed
+                category._ || String(category);
           itemXml += `      <category>${escapeXml(categoryValue)}</category>\n`;
         });
       }
