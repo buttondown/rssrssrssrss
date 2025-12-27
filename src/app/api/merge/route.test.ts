@@ -104,7 +104,9 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
 
       // Verify response is valid RSS
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain("application/rss+xml");
+      expect(response.headers.get("content-type")).toContain(
+        "application/rss+xml"
+      );
 
       // Verify the merged feed title is present
       expect(text).toContain("Merged Feed");

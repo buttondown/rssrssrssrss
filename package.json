@@ -10,25 +10,25 @@
     "format": "bunx biome check --fix --unsafe src/**/*.{ts,tsx,js,jsx,json,md,mdx}"
   },
   "dependencies": {
-    "@vercel/analytics": "^1.5.0",
+    "@vercel/analytics": "^1.6.1",
     "lz-string": "^1.5.0",
-    "next": "15.3.8",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "next": "16",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/lz-string": "^1.3.34",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
+    "@eslint/eslintrc": "^3.3.3",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/lz-string": "^1.5.0",
+    "@types/node": "^20.19.27",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.2",
     "eslint-config-next": "15.3.2",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
   },
   "trustedDependencies": [
     "@biomejs/biome",
