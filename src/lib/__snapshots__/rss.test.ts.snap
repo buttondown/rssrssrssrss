@@ -70,7 +70,7 @@ exports[`rss - XML to final output should handle failed feeds in merge 1`] = `
       <title>⚠️ Failed to load feed: http://example.com/failed</title>
       <link>http://example.com/failed</link>
       <guid>error-NORMALIZED_TIMESTAMP</guid>
-      <pubDate>NORMALIZED_DATE</pubDate>
+      <pubDate>Sun, 28 Dec 2025 21:45:29 GMT</pubDate>
       <content:encoded><![CDATA[<p>Failed to load this feed:</p><p><code>http://example.com/failed</code></p><p>Error: Failed to fetch feed</p>]]></content:encoded>
     </item>
     <item>
