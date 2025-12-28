@@ -2,6 +2,7 @@
 
 import LZString from "lz-string";
 import { useEffect, useState } from "react";
+import { FAQS } from "@/lib/faqs";
 
 type FeedItem = {
   title?: string;
@@ -229,53 +230,14 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="">
-            <h2 className="font-semibold text-gray-800">How do I use this?</h2>
-            <p className="text-gray-600">
-              Put the URLs of RSS feeds you want to combine in the box above;
-              idly (or passionately) browse the preview to make sure it's what
-              you want; hit the button to get a permalink (that's a base-64
-              encoded URL of the feeds, so no real worry about bitrot).
-            </p>
-          </div>
-
-          <div className="">
-            <h2 className="font-semibold text-gray-800">
-              Why would I want to do this?
-            </h2>
-            <p className="text-gray-600">
-              Lots of things take RSS. Relatively few things do a great job of
-              interleaving multiple RSS feeds. This is a simple tool to do that.
-            </p>
-          </div>
-
-          <div className="">
-            <h2 className="font-semibold text-gray-800">
-              May I refer to it as rss<sup>4</sup>?
-            </h2>
-            <p className="text-gray-600">If you insist.</p>
-          </div>
-
-          <div className="">
-            <h2 className="font-semibold text-gray-800">Who built this?</h2>
-            <p className="text-gray-600">
-              Your friends at{" "}
-              <a
-                href="https://buttondown.com?utm_source=rss4"
-                className="text-blue-600 hover:text-blue-800"
-              >
-                Buttondown
-              </a>
-              , and they even made it{" "}
-              <a
-                href="https://github.com/buttondown/rssrssrssrss"
-                className="text-blue-600 hover:text-blue-800"
-              >
-                open source
-              </a>
-              .
-            </p>
-          </div>
+          {FAQS.map((faq, index) => (
+            <div key={index} className="">
+              <h2 className="font-semibold text-gray-800">
+                {faq.questionJsx ?? faq.question}
+              </h2>
+              <p className="text-gray-600">{faq.answerJsx}</p>
+            </div>
+          ))}
 
           {errorMessage && (
             <div className="mt-4 p-3 border border-red-300 rounded-md bg-red-50 text-red-700">

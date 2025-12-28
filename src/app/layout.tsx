@@ -1,6 +1,7 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { getFaqStructuredData } from "@/lib/faqs";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -102,6 +103,8 @@ export default function RootLayout({
     ],
   };
 
+  const faqStructuredData = getFaqStructuredData();
+
   return (
     <html lang="en">
       <head>
@@ -111,6 +114,12 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(structuredData),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(faqStructuredData),
           }}
         />
       </head>
