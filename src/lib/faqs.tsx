@@ -60,6 +60,24 @@ export const FAQS: FAQ[] = [
     ),
   },
   {
+    question: "What about if it's a calendar, not a sitemap?",
+    answer:
+      "Check out caltorss (https://caltorss.com/), which can convert public calendars (iCal/ICS) into RSS feeds that this tool can then combine and remix.",
+    answerJsx: (
+      <>
+        Check out{" "}
+        <a
+          href="https://caltorss.com/"
+          className="text-blue-600 hover:text-blue-800"
+        >
+          caltorss
+        </a>
+        , which can convert public calendars (iCal/ICS) into RSS feeds that this
+        tool can then combine and remix.
+      </>
+    ),
+  },
+  {
     question: "Who built this?",
     answer:
       "Your friends at Buttondown (https://buttondown.com), and they even made it open source (https://github.com/buttondown/rssrssrssrss).",
