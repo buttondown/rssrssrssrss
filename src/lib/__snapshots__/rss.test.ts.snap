@@ -76,7 +76,7 @@ exports[`rss - XML to final output should handle failed feeds in merge 1`] = `
     <item>
       <title>Valid Article</title>
       <guid></guid>
-      <pubDate>Mon, 28 Oct 2025 10:00:00 GMT</pubDate>
+      <pubDate>NORMALIZED_DATE</pubDate>
       <source url="http://example.com/valid">Valid Feed</source>
     </item>
   </channel>
