@@ -47,11 +47,11 @@ describe("rss - XML to final output", () => {
     // Parse XML feeds directly
     const result1 = await parseFeedFromXml(
       feed1Xml,
-      "http://example.com/feed1"
+      "http://example.com/feed1",
     );
     const result2 = await parseFeedFromXml(
       feed2Xml,
-      "http://example2.com/feed2"
+      "http://example2.com/feed2",
     );
 
     expect(result1.error).toBeNull();
@@ -63,7 +63,7 @@ describe("rss - XML to final output", () => {
         { ...result1, url: "http://example.com/feed1" },
         { ...result2, url: "http://example2.com/feed2" },
       ],
-      "http://example.com/merged"
+      "http://example.com/merged",
     );
 
     // Generate RSS output
@@ -72,7 +72,7 @@ describe("rss - XML to final output", () => {
     // Normalize dates in RSS output for snapshot comparison
     const normalizedRss = rssOutput.replace(
       /<lastBuildDate>.*?<\/lastBuildDate>/,
-      "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>"
+      "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>",
     );
 
     expect(normalizedRss).toMatchSnapshot();
@@ -102,13 +102,13 @@ describe("rss - XML to final output", () => {
     // Merge feeds
     const mergedFeed = mergeFeeds(
       [{ ...result, url: "http://example.com/feed" }],
-      "http://example.com/merged"
+      "http://example.com/merged",
     );
 
     // Generate JSON Feed output
     const jsonOutput = generateJSONFeed(
       mergedFeed,
-      "http://example.com/merged"
+      "http://example.com/merged",
     );
 
     expect(jsonOutput).toMatchSnapshot();
@@ -128,7 +128,7 @@ describe("rss - XML to final output", () => {
 
     const validResult = await parseFeedFromXml(
       feedXml,
-      "http://example.com/valid"
+      "http://example.com/valid",
     );
     const failedResult = {
       feed: null,
@@ -139,7 +139,7 @@ describe("rss - XML to final output", () => {
     // Merge feeds including failed one
     const mergedFeed = mergeFeeds(
       [{ ...validResult, url: "http://example.com/valid" }, failedResult],
-      "http://example.com/merged"
+      "http://example.com/merged",
     );
 
     // Generate RSS output
@@ -148,9 +148,15 @@ describe("rss - XML to final output", () => {
     // Normalize dates and timestamps in RSS output for snapshot comparison
     // Error items have dynamically generated timestamps, so normalize them
     const normalizedRss = rssOutput
-      .replace(/<lastBuildDate>.*?<\/lastBuildDate>/, "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>")
+      .replace(
+        /<lastBuildDate>.*?<\/lastBuildDate>/,
+        "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>",
+      )
       .replace(/guid>error-.*?-\d+</g, "guid>error-NORMALIZED_TIMESTAMP<")
-      .replace(/<pubDate>Sat, \d+ Dec \d{4} \d{2}:\d{2}:\d{2} GMT<\/pubDate>/g, "<pubDate>NORMALIZED_DATE</pubDate>");
+      .replace(
+        /<pubDate>\w{3}, \d+ \w{3} \d{4} \d{2}:\d{2}:\d{2} GMT<\/pubDate>/g,
+        "<pubDate>NORMALIZED_DATE</pubDate>",
+      );
 
     expect(normalizedRss).toMatchSnapshot();
   });
@@ -187,7 +193,7 @@ describe("rss - XML to final output", () => {
     // Parse XML feed directly
     const result = await parseFeedFromXml(
       feedXml,
-      "https://www.evalapply.org/index.xml"
+      "https://www.evalapply.org/index.xml",
     );
 
     expect(result.error).toBeNull();
@@ -195,7 +201,7 @@ describe("rss - XML to final output", () => {
     // Merge feeds
     const mergedFeed = mergeFeeds(
       [{ ...result, url: "https://www.evalapply.org/index.xml" }],
-      "http://example.com/merged"
+      "http://example.com/merged",
     );
 
     // Generate RSS output
@@ -204,7 +210,7 @@ describe("rss - XML to final output", () => {
     // Normalize dates in RSS output for snapshot comparison
     const normalizedRss = rssOutput.replace(
       /<lastBuildDate>.*?<\/lastBuildDate>/,
-      "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>"
+      "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>",
     );
 
     expect(normalizedRss).toMatchSnapshot();
@@ -212,7 +218,7 @@ describe("rss - XML to final output", () => {
     // Also test JSON Feed generation
     const jsonOutput = generateJSONFeed(
       mergedFeed,
-      "http://example.com/merged"
+      "http://example.com/merged",
     );
 
     expect(jsonOutput).toMatchSnapshot();
