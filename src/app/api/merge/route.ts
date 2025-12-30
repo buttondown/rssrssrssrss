@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
               "The payload you've pasted is all lowercase, which is a common issue with Safari copy/paste. Please try again with a different browser.",
             payload: compressedFeeds,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
       return NextResponse.json(
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
           error: `${GENERATOR} cannot parse that payload. Are you sure you copied/pasted it correctly?`,
           payload: compressedFeeds,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
   } else {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   if (!urls || urls.length === 0) {
     return NextResponse.json(
       { error: "No RSS feed URLs provided" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

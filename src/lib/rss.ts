@@ -9,6 +9,10 @@ const parser = new Parser({
       ["dc:creator", "creator"],
     ],
   },
+  headers: {
+    // Not registered with Cloudflare yet, but hnrss.org returns a 429 if we don't provide any UA.
+    "User-Agent": "rssrssrssrss (https://rssrssrssrss.com)",
+  },
 });
 
 const GENERATOR = "rssrssrssrss";
