@@ -1,5 +1,5 @@
 import { encodeContent } from "@/lib/encoding";
-import { CustomFeed, CustomItem, JSONFeed } from "@/lib/types";
+import { Category, CustomFeed, CustomItem, JSONFeed } from "@/lib/types";
 import Parser from "rss-parser";
 
 const parser = new Parser({
@@ -14,8 +14,8 @@ const parser = new Parser({
 const GENERATOR = "rssrssrssrss";
 const FEED_TITLE = "Merged Feed";
 
-// Helper functions for JSON Feed detection and parsing
-async function isJSONFeed(url: string): Promise<boolean> {
+// Helper function to try parsing as JSON Feed, returns null if not a JSON Feed
+async function tryParseAsJSONFeed(url: string): Promise<CustomFeed | null> {
   try {
     const response = await fetch(url, {
       headers: { Accept: "application/json, application/feed+json, */*" },
@@ -27,43 +27,39 @@ async function isJSONFeed(url: string): Promise<boolean> {
       contentType.includes("application/json")
     ) {
       const text = await response.text();
-      const data = JSON.parse(text);
-      return data.version && data.version.includes("jsonfeed.org");
+      const jsonFeed: JSONFeed = JSON.parse(text);
+
+      if (!jsonFeed.version || !jsonFeed.version.includes("jsonfeed.org")) {
+        return null;
+      }
+
+      // Convert JSON Feed items to CustomItem format
+      const items: CustomItem[] = jsonFeed.items.map((item) => ({
+        title: item.title,
+        link: item.url || item.external_url,
+        pubDate: item.date_published,
+        content: item.content_html,
+        contentSnippet: item.content_text || item.summary,
+        creator: item.author?.name,
+        isoDate: item.date_published,
+        guid: item.id,
+        categories: item.tags,
+        sourceFeedTitle: jsonFeed.title,
+        sourceFeedUrl: url,
+      }));
+
+      return {
+        title: jsonFeed.title,
+        description: jsonFeed.description,
+        link: jsonFeed.home_page_url,
+        items,
+      };
     }
 
-    return false;
+    return null;
   } catch {
-    return false;
+    return null;
   }
-}
-
-async function parseJSONFeed(url: string): Promise<CustomFeed> {
-  const response = await fetch(url, {
-    headers: { Accept: "application/json, application/feed+json, */*" },
-  });
-  const jsonFeed: JSONFeed = await response.json();
-
-  // Convert JSON Feed items to CustomItem format
-  const items: CustomItem[] = jsonFeed.items.map((item) => ({
-    title: item.title,
-    link: item.url || item.external_url,
-    pubDate: item.date_published,
-    content: item.content_html,
-    contentSnippet: item.content_text || item.summary,
-    creator: item.author?.name,
-    isoDate: item.date_published,
-    guid: item.id,
-    categories: item.tags,
-    sourceFeedTitle: jsonFeed.title,
-    sourceFeedUrl: url,
-  }));
-
-  return {
-    title: jsonFeed.title,
-    description: jsonFeed.description,
-    link: jsonFeed.home_page_url,
-    items,
-  };
 }
 
 /**
@@ -74,9 +70,10 @@ export async function parseFeedFromUrl(url: string): Promise<{
   error: string | null;
 }> {
   try {
-    // Check if it's a JSON Feed first
-    if (await isJSONFeed(url)) {
-      return { feed: await parseJSONFeed(url), error: null };
+    // Check if it's a JSON Feed first (single fetch)
+    const jsonFeed = await tryParseAsJSONFeed(url);
+    if (jsonFeed) {
+      return { feed: jsonFeed, error: null };
     } else {
       // Fall back to RSS parsing
       const feed = await parser.parseURL(url);
@@ -106,7 +103,7 @@ export async function parseFeedFromUrl(url: string): Promise<{
  */
 export async function parseFeedFromXml(
   xml: string,
-  sourceUrl?: string
+  sourceUrl?: string,
 ): Promise<{
   feed: CustomFeed | null;
   error: string | null;
@@ -138,7 +135,7 @@ export async function parseFeedFromXml(
  */
 export async function parseFeedFromJsonFeed(
   jsonFeedString: string,
-  sourceUrl?: string
+  sourceUrl?: string,
 ): Promise<{
   feed: CustomFeed | null;
   error: string | null;
@@ -195,7 +192,7 @@ export function mergeFeeds(
     error: string | null;
     url?: string;
   }>,
-  requestUrl?: string
+  requestUrl?: string,
 ): CustomFeed {
   // Combine all items into a single array, and collect failed feeds
   const allItems: CustomItem[] = [];
@@ -270,7 +267,7 @@ function wrapCDATA(content: string): string {
  */
 export function generateRSS(
   mergedFeed: CustomFeed,
-  requestUrl?: string
+  requestUrl?: string,
 ): string {
   const items = mergedFeed.items
     .map((item) => {
@@ -290,7 +287,7 @@ export function generateRSS(
 
       // GUID
       itemXml += `      <guid>${escapeXml(
-        item.guid || item.link || ""
+        item.guid || item.link || "",
       )}</guid>\n`;
 
       // Publication date
@@ -303,7 +300,7 @@ export function generateRSS(
       // Creator (DC namespace)
       if (item.creator) {
         itemXml += `      <dc:creator>${wrapCDATA(
-          item.creator
+          item.creator,
         )}</dc:creator>\n`;
       }
 
@@ -312,23 +309,22 @@ export function generateRSS(
         // Note that we don't need to encode this because we're wrapping it in CData.
         // Per #11, encoding it just removes smart quotes and things of that nature unnecessarily.
         itemXml += `      <content:encoded>${wrapCDATA(
-          item.content
+          item.content,
         )}</content:encoded>\n`;
       } else if (item.contentSnippet) {
         itemXml += `      <description>${escapeXml(
-          encodeContent(item.contentSnippet)
+          encodeContent(item.contentSnippet),
         )}</description>\n`;
       }
 
       // Categories
       if (item.categories && item.categories.length > 0) {
-        item.categories.forEach((category) => {
+        item.categories.forEach((category: Category) => {
           // Handle categories that may be objects with _ property (from rss-parser when they have attributes)
           const categoryValue =
             typeof category === "string"
               ? category
-              : // @ts-expect-error - category._ is not typed
-                category._ || String(category);
+              : category._ || String(category);
           itemXml += `      <category>${escapeXml(categoryValue)}</category>\n`;
         });
       }
@@ -336,7 +332,7 @@ export function generateRSS(
       // Source information
       if (item.sourceFeedTitle && item.sourceFeedUrl) {
         itemXml += `      <source url="${escapeXml(
-          item.sourceFeedUrl
+          item.sourceFeedUrl,
         )}">${escapeXml(item.sourceFeedTitle)}</source>\n`;
       }
 
@@ -350,7 +346,7 @@ export function generateRSS(
   <channel>
     <title>${escapeXml(mergedFeed.title || FEED_TITLE)}</title>
     <description>${escapeXml(
-      mergedFeed.description || "Combined feed from multiple sources"
+      mergedFeed.description || "Combined feed from multiple sources",
     )}</description>
     <link>${escapeXml(mergedFeed.link || requestUrl || "")}</link>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
@@ -364,7 +360,7 @@ ${items}  </channel>
  */
 export function generateJSONFeed(
   mergedFeed: CustomFeed,
-  requestUrl?: string
+  requestUrl?: string,
 ): string {
   const jsonFeed: JSONFeed = {
     version: "https://jsonfeed.org/version/1.1",
@@ -382,7 +378,7 @@ export function generateJSONFeed(
       author: item.creator ? { name: item.creator } : undefined,
       tags: item.categories
         ? item.categories.map((cat: any) =>
-            typeof cat === "string" ? cat : cat._ || String(cat)
+            typeof cat === "string" ? cat : cat._ || String(cat),
           )
         : undefined,
     })),

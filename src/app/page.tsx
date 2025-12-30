@@ -137,7 +137,7 @@ export default function Home() {
               item.querySelector("source")?.textContent || undefined,
             image:
               parser
-                .parseFromString(getTextContent("encoded") || "", "text/html")
+                .parseFromString(getTextContent("content") || "", "text/html")
                 .querySelector("img")
                 ?.getAttribute("src") || undefined,
           };

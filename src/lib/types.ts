@@ -1,3 +1,6 @@
+// Category can be a string or an object with _ property (when RSS category has attributes)
+export type Category = string | { _: string; [key: string]: any };
+
 // Types for RSS items
 export type CustomItem = {
   title?: string;
@@ -8,7 +11,7 @@ export type CustomItem = {
   creator?: string;
   isoDate?: string;
   guid?: string;
-  categories?: string[];
+  categories?: Category[];
   // Source tracking
   sourceFeedTitle?: string;
   sourceFeedUrl?: string;
