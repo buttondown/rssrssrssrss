@@ -120,7 +120,6 @@ export default function Home() {
       );
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(text, "text/xml");
-      console.log(xmlDoc);
 
       const items = Array.from(xmlDoc.querySelectorAll("item"))
         .slice(0, 25)
@@ -137,7 +136,7 @@ export default function Home() {
               item.querySelector("source")?.textContent || undefined,
             image:
               parser
-                .parseFromString(getTextContent("encoded") || "", "text/html")
+                .parseFromString(getTextContent("content") || "", "text/html")
                 .querySelector("img")
                 ?.getAttribute("src") || undefined,
           };

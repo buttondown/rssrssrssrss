@@ -80,7 +80,7 @@ export const FAQS: FAQ[] = [
   {
     question: "Who built this?",
     answer:
-      "Your friends at Buttondown (https://buttondown.com), and they even made it open source (https://github.com/buttondown/rssrssrssrss).",
+      "Your friends at Buttondown (https://buttondown.com?utm_source=rss4), and they even made it open source (https://github.com/buttondown/rssrssrssrss).",
     answerJsx: (
       <>
         Your friends at{" "}
