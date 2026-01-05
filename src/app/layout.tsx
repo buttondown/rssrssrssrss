@@ -1,4 +1,4 @@
-import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { getFaqStructuredData } from "@/lib/faqs";
@@ -127,7 +127,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
-        <Analytics />
+        <Script
+          src="https://cdn.seline.com/seline.js"
+          data-token="e8ba710cad7809f"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
