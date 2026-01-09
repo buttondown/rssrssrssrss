@@ -1,9 +1,10 @@
-import { expect, it, describe } from "bun:test";
+import { expect, it, describe, mock, afterEach } from "bun:test";
 import {
   parseFeedFromXml,
   mergeFeeds,
   generateRSS,
   generateJSONFeed,
+  discoverFeedFromHtml,
 } from "./rss";
 
 describe("rss - XML to final output", () => {
@@ -222,5 +223,161 @@ describe("rss - XML to final output", () => {
     );
 
     expect(jsonOutput).toMatchSnapshot();
+  });
+});
+
+describe("discoverFeedFromHtml", () => {
+  const originalFetch = global.fetch;
+
+  const mockFetch = (html: string, contentType = "text/html") => {
+    global.fetch = mock(() =>
+      Promise.resolve({
+        headers: new Map([["content-type", contentType]]),
+        text: () => Promise.resolve(html),
+      } as unknown as Response),
+    ) as unknown as typeof fetch;
+  };
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("should discover RSS feed from HTML with absolute URL", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Page</title>
+  <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://example.com/feed.xml">
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBe("https://example.com/feed.xml");
+  });
+
+  it("should discover Atom feed from HTML", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel="alternate" type="application/atom+xml" href="https://example.com/atom.xml">
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBe("https://example.com/atom.xml");
+  });
+
+  it("should discover JSON Feed from HTML", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel="alternate" type="application/feed+json" href="https://example.com/feed.json">
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBe("https://example.com/feed.json");
+  });
+
+  it("should handle relative URLs starting with /", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel="alternate" type="application/rss+xml" href="/blog/feed.xml">
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/blog/");
+    expect(feedUrl).toBe("https://example.com/blog/feed.xml");
+  });
+
+  it("should handle protocol-relative URLs", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel="alternate" type="application/rss+xml" href="//cdn.example.com/feed.xml">
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBe("https://cdn.example.com/feed.xml");
+  });
+
+  it("should handle relative paths", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel="alternate" type="application/rss+xml" href="feed.xml">
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml(
+      "https://example.com/blog/page.html",
+    );
+    expect(feedUrl).toBe("https://example.com/blog/feed.xml");
+  });
+
+  it("should return null when no feed links found", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>No Feed</title>
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBeNull();
+  });
+
+  it("should return null for non-HTML content types", async () => {
+    mockFetch("{}", "application/json");
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/api/data");
+    expect(feedUrl).toBeNull();
+  });
+
+  it("should return null on fetch error", async () => {
+    global.fetch = mock(() =>
+      Promise.reject(new Error("Network error")),
+    ) as unknown as typeof fetch;
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBeNull();
+  });
+
+  it("should handle single quotes in link attributes", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <link rel='alternate' type='application/rss+xml' href='https://example.com/feed.xml'>
+</head>
+<body></body>
+</html>`;
+
+    mockFetch(html);
+
+    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    expect(feedUrl).toBe("https://example.com/feed.xml");
   });
 });

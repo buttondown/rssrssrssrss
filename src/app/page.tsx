@@ -13,6 +13,22 @@ type FeedItem = {
   image?: string;
 };
 
+const CHANGELOG: { date: string; description: string }[] = [
+  {
+    date: "2026-01-08",
+    description:
+      "Added automatic RSS feed discovery from HTML pages. You can now paste any website URL and we'll try to find its RSS feed automatically.",
+  },
+  {
+    date: "2025-12-16",
+    description: "Added support for JSON Feed format (both input and output).",
+  },
+  {
+    date: "2025-11-01",
+    description: "Initial release with RSS feed merging support.",
+  },
+];
+
 const SAMPLE_FEEDS: { name: string; feeds: string[] }[] = [
   {
     name: "Tech News Bundle",
@@ -237,6 +253,20 @@ export default function Home() {
               <p className="text-gray-600">{faq.answerJsx}</p>
             </div>
           ))}
+
+          <div className="">
+            <h2 className="font-semibold text-gray-800">Changelog</h2>
+            <ul className="text-gray-600 space-y-2 mt-2">
+              {CHANGELOG.map((entry, index) => (
+                <li key={index} className="text-sm">
+                  <span className="font-mono text-xs text-gray-500">
+                    {entry.date}
+                  </span>
+                  <p>{entry.description}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           {errorMessage && (
             <div className="mt-4 p-3 border border-red-300 rounded-md bg-red-50 text-red-700">

@@ -17,6 +17,89 @@ const parser = new Parser({
 
 const GENERATOR = "rssrssrssrss";
 const FEED_TITLE = "Merged Feed";
+const USER_AGENT = "rssrssrssrss (https://rssrssrssrss.com)";
+
+/**
+ * Try to discover RSS/Atom feed URLs from an HTML page by looking for
+ * <link rel="alternate"> tags with feed content types.
+ */
+export async function discoverFeedFromHtml(
+  url: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html, application/xhtml+xml, */*",
+      },
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+
+    // Only try to discover feeds from HTML pages
+    if (
+      !contentType.includes("text/html") &&
+      !contentType.includes("application/xhtml")
+    ) {
+      return null;
+    }
+
+    const html = await response.text();
+
+    // Look for <link rel="alternate" type="application/rss+xml" href="...">
+    // or <link rel="alternate" type="application/atom+xml" href="...">
+    // or <link rel="alternate" type="application/feed+json" href="...">
+    const feedLinkRegex = /<link[^>]*rel=["']alternate["'][^>]*>/gi;
+    const matches = html.match(feedLinkRegex);
+
+    if (!matches) {
+      return null;
+    }
+
+    for (const linkTag of matches) {
+      const typeMatch = linkTag.match(/type=["']([^"']+)["']/i);
+      const hrefMatch = linkTag.match(/href=["']([^"']+)["']/i);
+
+      if (!typeMatch || !hrefMatch) {
+        continue;
+      }
+
+      const type = typeMatch[1].toLowerCase();
+      const href = hrefMatch[1];
+
+      // Check if it's a feed type
+      if (
+        type.includes("application/rss+xml") ||
+        type.includes("application/atom+xml") ||
+        type.includes("application/feed+json") ||
+        type.includes("application/json")
+      ) {
+        // Handle relative URLs
+        if (href.startsWith("http://") || href.startsWith("https://")) {
+          return href;
+        } else if (href.startsWith("//")) {
+          // Protocol-relative URL
+          const baseUrl = new URL(url);
+          return `${baseUrl.protocol}${href}`;
+        } else if (href.startsWith("/")) {
+          // Absolute path
+          const baseUrl = new URL(url);
+          return `${baseUrl.origin}${href}`;
+        } else {
+          // Relative path
+          const baseUrl = new URL(url);
+          const pathParts = baseUrl.pathname.split("/");
+          pathParts.pop(); // Remove the current page
+          return `${baseUrl.origin}${pathParts.join("/")}/${href}`;
+        }
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 // Helper function to try parsing as JSON Feed, returns null if not a JSON Feed
 async function tryParseAsJSONFeed(url: string): Promise<CustomFeed | null> {
@@ -68,6 +151,7 @@ async function tryParseAsJSONFeed(url: string): Promise<CustomFeed | null> {
 
 /**
  * Parse a feed from a URL (RSS or JSON Feed)
+ * If the URL is not a feed, try to discover a feed from the HTML page.
  */
 export async function parseFeedFromUrl(url: string): Promise<{
   feed: CustomFeed | null;
@@ -94,7 +178,57 @@ export async function parseFeedFromUrl(url: string): Promise<{
       };
     }
   } catch (error) {
+    // If direct parsing failed, try to discover a feed from the HTML page
+    const discoveredFeedUrl = await discoverFeedFromHtml(url);
+    if (discoveredFeedUrl) {
+      // Recursively try to parse the discovered feed URL
+      // But pass a flag to avoid infinite recursion if the discovered URL also fails
+      return parseFeedFromDiscoveredUrl(discoveredFeedUrl, url);
+    }
+
     console.error(`Error fetching feed from ${url}:`, error);
+    return {
+      feed: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/**
+ * Parse a feed from a discovered URL (no further discovery attempts)
+ */
+async function parseFeedFromDiscoveredUrl(
+  feedUrl: string,
+  originalUrl: string,
+): Promise<{
+  feed: CustomFeed | null;
+  error: string | null;
+}> {
+  try {
+    // Check if it's a JSON Feed first
+    const jsonFeed = await tryParseAsJSONFeed(feedUrl);
+    if (jsonFeed) {
+      return { feed: jsonFeed, error: null };
+    } else {
+      // Fall back to RSS parsing
+      const feed = await parser.parseURL(feedUrl);
+      return {
+        feed: {
+          ...feed,
+          items: feed.items.map((item: CustomItem) => ({
+            ...item,
+            sourceFeedTitle: feed.title,
+            sourceFeedUrl: feedUrl,
+          })),
+        },
+        error: null,
+      };
+    }
+  } catch (error) {
+    console.error(
+      `Error fetching discovered feed from ${feedUrl} (original: ${originalUrl}):`,
+      error,
+    );
     return {
       feed: null,
       error: error instanceof Error ? error.message : String(error),
