@@ -385,10 +385,32 @@ export function mergeFeeds(
 }
 
 // Helper functions for XML generation
-function escapeXml(unsafe: string): string {
-  if (!unsafe) return "";
+// Helper to safely coerce a value to a string.
+// Handles cases where rss-parser returns an object (e.g., { $: { isPermaLink: "false" }, _: "actual-guid" })
+// when XML elements have attributes.
+function safeString(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
 
-  return unsafe
+  if (typeof value === "object") {
+    // rss-parser stores the text content in _ and attributes in $
+    const v = value as Record<string, unknown>;
+    if (typeof v._ === "string") return v._;
+    if (v._ != null) return String(v._);
+    // If there's no _ property, the element might be attribute-only (malformed)
+    return "";
+  }
+
+  return String(value);
+}
+
+function escapeXml(unsafe: unknown): string {
+  const str = safeString(unsafe);
+  if (!str) return "";
+
+  return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -396,8 +418,9 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function wrapCDATA(content: string): string {
-  return `<![CDATA[${content}]]>`;
+function wrapCDATA(content: unknown): string {
+  const str = safeString(content);
+  return `<![CDATA[${str}]]>`;
 }
 
 /**
@@ -458,12 +481,7 @@ export function generateRSS(
       // Categories
       if (item.categories && item.categories.length > 0) {
         item.categories.forEach((category: Category) => {
-          // Handle categories that may be objects with _ property (from rss-parser when they have attributes)
-          const categoryValue =
-            typeof category === "string"
-              ? category
-              : category._ || String(category);
-          itemXml += `      <category>${escapeXml(categoryValue)}</category>\n`;
+          itemXml += `      <category>${escapeXml(category)}</category>\n`;
         });
       }
 
@@ -507,7 +525,7 @@ export function generateJSONFeed(
     home_page_url: mergedFeed.link,
     feed_url: requestUrl,
     items: mergedFeed.items.map((item) => ({
-      id: item.guid || item.link || crypto.randomUUID(),
+      id: safeString(item.guid) || safeString(item.link) || crypto.randomUUID(),
       url: item.link,
       title: item.title,
       content_html: item.content,
@@ -515,9 +533,7 @@ export function generateJSONFeed(
       date_published: item.isoDate || item.pubDate,
       author: item.creator ? { name: item.creator } : undefined,
       tags: item.categories
-        ? item.categories.map((cat: any) =>
-            typeof cat === "string" ? cat : cat._ || String(cat),
-          )
+        ? item.categories.map((cat) => safeString(cat))
         : undefined,
     })),
   };
