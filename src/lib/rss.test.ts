@@ -162,6 +162,50 @@ describe("rss - XML to final output", () => {
     expect(normalizedRss).toMatchSnapshot();
   });
 
+  it("should handle guid with isPermaLink attribute (object instead of string)", async () => {
+    // Some feeds have <guid isPermaLink="false">...</guid> which rss-parser
+    // returns as an object like { $: { isPermaLink: "false" }, _: "actual-guid" }
+    // or just { $: { isPermaLink: "false" } } if malformed
+    const feedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>http://example.com</link>
+    <item>
+      <title>Article with guid attribute</title>
+      <link>http://example.com/article1</link>
+      <guid isPermaLink="false">https://example.com/?p=12345</guid>
+      <pubDate>Mon, 28 Oct 2025 10:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Article with normal guid</title>
+      <link>http://example.com/article2</link>
+      <guid>http://example.com/article2</guid>
+      <pubDate>Sun, 27 Oct 2025 10:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`;
+
+    const result = await parseFeedFromXml(feedXml, "http://example.com/feed");
+    expect(result.error).toBeNull();
+
+    const mergedFeed = mergeFeeds(
+      [{ ...result, url: "http://example.com/feed" }],
+      "http://example.com/merged",
+    );
+
+    // This should not throw - the bug was that escapeXml received an object
+    const rssOutput = generateRSS(mergedFeed, "http://example.com/merged");
+
+    // Verify the guid is properly extracted
+    expect(rssOutput).toContain("<guid>https://example.com/?p=12345</guid>");
+    expect(rssOutput).toContain("<guid>http://example.com/article2</guid>");
+
+    // Also verify JSON Feed output works
+    const jsonOutput = generateJSONFeed(mergedFeed, "http://example.com/merged");
+    expect(jsonOutput).toContain("https://example.com/?p=12345");
+  });
+
   it("should parse Aditya Athalye's Eval/Apply Blog feed", async () => {
     const feedXml = `<rss xmlns:atom="http://www.w3.org/2005/Atom" version="2.0">
 <channel>
