@@ -1,8 +1,8 @@
 "use client";
 
+import { FAQS } from "@/lib/faqs";
 import LZString from "lz-string";
 import { useEffect, useState } from "react";
-import { FAQS } from "@/lib/faqs";
 
 type FeedItem = {
   title?: string;

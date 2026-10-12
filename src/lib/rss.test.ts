@@ -1,10 +1,10 @@
-import { expect, it, describe, mock, afterEach } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
-  parseFeedFromXml,
-  mergeFeeds,
-  generateRSS,
-  generateJSONFeed,
   discoverFeedFromHtml,
+  generateJSONFeed,
+  generateRSS,
+  mergeFeeds,
+  parseFeedFromXml,
 } from "./rss";
 
 describe("rss - XML to final output", () => {
@@ -202,7 +202,10 @@ describe("rss - XML to final output", () => {
     expect(rssOutput).toContain("<guid>http://example.com/article2</guid>");
 
     // Also verify JSON Feed output works
-    const jsonOutput = generateJSONFeed(mergedFeed, "http://example.com/merged");
+    const jsonOutput = generateJSONFeed(
+      mergedFeed,
+      "http://example.com/merged",
+    );
     expect(jsonOutput).toContain("https://example.com/?p=12345");
   });
 
@@ -271,21 +274,6 @@ describe("rss - XML to final output", () => {
 });
 
 describe("discoverFeedFromHtml", () => {
-  const originalFetch = global.fetch;
-
-  const mockFetch = (html: string, contentType = "text/html") => {
-    global.fetch = mock(() =>
-      Promise.resolve({
-        headers: new Map([["content-type", contentType]]),
-        text: () => Promise.resolve(html),
-      } as unknown as Response),
-    ) as unknown as typeof fetch;
-  };
-
-  afterEach(() => {
-    global.fetch = originalFetch;
-  });
-
   it("should discover RSS feed from HTML with absolute URL", async () => {
     const html = `<!DOCTYPE html>
 <html>
@@ -296,9 +284,11 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/",
+    );
     expect(feedUrl).toBe("https://example.com/feed.xml");
   });
 
@@ -311,9 +301,11 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/",
+    );
     expect(feedUrl).toBe("https://example.com/atom.xml");
   });
 
@@ -326,9 +318,11 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/",
+    );
     expect(feedUrl).toBe("https://example.com/feed.json");
   });
 
@@ -341,9 +335,11 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/blog/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/blog/",
+    );
     expect(feedUrl).toBe("https://example.com/blog/feed.xml");
   });
 
@@ -356,9 +352,11 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/",
+    );
     expect(feedUrl).toBe("https://cdn.example.com/feed.xml");
   });
 
@@ -371,9 +369,9 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml(
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
       "https://example.com/blog/page.html",
     );
     expect(feedUrl).toBe("https://example.com/blog/feed.xml");
@@ -388,25 +386,20 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/",
+    );
     expect(feedUrl).toBeNull();
   });
 
   it("should return null for non-HTML content types", async () => {
-    mockFetch("{}", "application/json");
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/api/data");
-    expect(feedUrl).toBeNull();
-  });
-
-  it("should return null on fetch error", async () => {
-    global.fetch = mock(() =>
-      Promise.reject(new Error("Network error")),
-    ) as unknown as typeof fetch;
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      "{}",
+      "application/json",
+      "https://example.com/api/data",
+    );
     expect(feedUrl).toBeNull();
   });
 
@@ -419,9 +412,11 @@ describe("discoverFeedFromHtml", () => {
 <body></body>
 </html>`;
 
-    mockFetch(html);
-
-    const feedUrl = await discoverFeedFromHtml("https://example.com/");
+    const feedUrl = discoverFeedFromHtml(
+      html,
+      "text/html",
+      "https://example.com/",
+    );
     expect(feedUrl).toBe("https://example.com/feed.xml");
   });
 });

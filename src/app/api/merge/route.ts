@@ -1,17 +1,18 @@
+import {
+  generateJSONFeed,
+  generateRSS,
+  mergeFeeds,
+  parseFeedFromUrl,
+} from "@/lib/rss";
 import LZString from "lz-string";
 import { type NextRequest, NextResponse } from "next/server";
-import {
-  parseFeedFromUrl,
-  mergeFeeds,
-  generateRSS,
-  generateJSONFeed,
-} from "@/lib/rss";
 
 const GENERATOR = "rssrssrssrss";
 
 const HEADERS = {
   "Content-Type": "application/rss+xml; charset=utf-8",
-  "Cache-Control": "max-age=600, s-maxage=600", // Cache for 10 minutes
+  "Cache-Control":
+    "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400",
 };
 
 export async function GET(request: NextRequest) {
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(jsonOutput, {
       headers: {
         "Content-Type": "application/feed+json; charset=utf-8",
-        "Cache-Control": "max-age=600, s-maxage=600",
+        "Cache-Control": HEADERS["Cache-Control"],
       },
     });
   }

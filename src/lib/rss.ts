@@ -9,33 +9,25 @@ const parser = new Parser({
       ["dc:creator", "creator"],
     ],
   },
-  headers: {
-    // Not registered with Cloudflare yet, but hnrss.org returns a 429 if we don't provide any UA.
-    "User-Agent": "rssrssrssrss (https://rssrssrssrss.com)",
-  },
 });
 
 const GENERATOR = "rssrssrssrss";
 const FEED_TITLE = "Merged Feed";
+// Not registered with Cloudflare yet, but hnrss.org returns a 429 if we don't provide any UA.
 const USER_AGENT = "rssrssrssrss (https://rssrssrssrss.com)";
+const FETCH_TIMEOUT_MS = 30000;
+const FEED_CACHE_SECONDS = 600;
 
 /**
  * Try to discover RSS/Atom feed URLs from an HTML page by looking for
  * <link rel="alternate"> tags with feed content types.
  */
-export async function discoverFeedFromHtml(
+export function discoverFeedFromHtml(
+  html: string,
+  contentType: string,
   url: string,
-): Promise<string | null> {
+): string | null {
   try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html, application/xhtml+xml, */*",
-      },
-    });
-
-    const contentType = response.headers.get("content-type") || "";
-
     // Only try to discover feeds from HTML pages
     if (
       !contentType.includes("text/html") &&
@@ -43,8 +35,6 @@ export async function discoverFeedFromHtml(
     ) {
       return null;
     }
-
-    const html = await response.text();
 
     // Look for <link rel="alternate" type="application/rss+xml" href="...">
     // or <link rel="alternate" type="application/atom+xml" href="...">
@@ -101,139 +91,85 @@ export async function discoverFeedFromHtml(
   }
 }
 
-// Helper function to try parsing as JSON Feed, returns null if not a JSON Feed
-async function tryParseAsJSONFeed(url: string): Promise<CustomFeed | null> {
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json, application/feed+json, */*" },
-    });
-    const contentType = response.headers.get("content-type") || "";
-
-    if (
-      contentType.includes("application/feed+json") ||
-      contentType.includes("application/json")
-    ) {
-      const text = await response.text();
-      const jsonFeed: JSONFeed = JSON.parse(text);
-
-      if (!jsonFeed.version || !jsonFeed.version.includes("jsonfeed.org")) {
-        return null;
-      }
-
-      // Convert JSON Feed items to CustomItem format
-      const items: CustomItem[] = jsonFeed.items.map((item) => ({
-        title: item.title,
-        link: item.url || item.external_url,
-        pubDate: item.date_published,
-        content: item.content_html,
-        contentSnippet: item.content_text || item.summary,
-        creator: item.author?.name,
-        isoDate: item.date_published,
-        guid: item.id,
-        categories: item.tags,
-        sourceFeedTitle: jsonFeed.title,
-        sourceFeedUrl: url,
-      }));
-
-      return {
-        title: jsonFeed.title,
-        description: jsonFeed.description,
-        link: jsonFeed.home_page_url,
-        items,
-      };
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
+// rss-parser's parseURL decodes latin1 when the server says so, and utf8 otherwise.
+function decodeXml(body: Buffer, contentType: string): string {
+  const charset = contentType
+    .match(/(encoding|charset)\s*=\s*(\S+)/)?.[2]
+    .toLowerCase();
+  return body.toString(
+    charset === "iso-8859-1" || charset === "latin1" ? "latin1" : "utf8",
+  );
 }
 
 /**
- * Parse a feed from a URL (RSS or JSON Feed)
+ * Parse a feed from a URL (RSS or JSON Feed) with a single fetch.
  * If the URL is not a feed, try to discover a feed from the HTML page.
  */
-export async function parseFeedFromUrl(url: string): Promise<{
-  feed: CustomFeed | null;
-  error: string | null;
-}> {
-  try {
-    // Check if it's a JSON Feed first (single fetch)
-    const jsonFeed = await tryParseAsJSONFeed(url);
-    if (jsonFeed) {
-      return { feed: jsonFeed, error: null };
-    } else {
-      // Fall back to RSS parsing
-      const feed = await parser.parseURL(url);
-      return {
-        feed: {
-          ...feed,
-          items: feed.items.map((item: CustomItem) => ({
-            ...item,
-            sourceFeedTitle: feed.title,
-            sourceFeedUrl: url,
-          })),
-        },
-        error: null,
-      };
-    }
-  } catch (error) {
-    // If direct parsing failed, try to discover a feed from the HTML page
-    const discoveredFeedUrl = await discoverFeedFromHtml(url);
-    if (discoveredFeedUrl) {
-      // Recursively try to parse the discovered feed URL
-      // But pass a flag to avoid infinite recursion if the discovered URL also fails
-      return parseFeedFromDiscoveredUrl(discoveredFeedUrl, url);
-    }
-
-    console.error(`Error fetching feed from ${url}:`, error);
-    return {
-      feed: null,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-/**
- * Parse a feed from a discovered URL (no further discovery attempts)
- */
-async function parseFeedFromDiscoveredUrl(
-  feedUrl: string,
-  originalUrl: string,
+export async function parseFeedFromUrl(
+  url: string,
+  allowDiscovery = true,
 ): Promise<{
   feed: CustomFeed | null;
   error: string | null;
 }> {
+  let response: Response;
+  let body: Buffer;
   try {
-    // Check if it's a JSON Feed first
-    const jsonFeed = await tryParseAsJSONFeed(feedUrl);
-    if (jsonFeed) {
-      return { feed: jsonFeed, error: null };
-    } else {
-      // Fall back to RSS parsing
-      const feed = await parser.parseURL(feedUrl);
+    response = await fetch(url, {
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept:
+          "application/feed+json, application/json, application/rss+xml, application/atom+xml, text/html, */*",
+      },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      next: { revalidate: FEED_CACHE_SECONDS },
+    });
+    body = Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    console.error(`Error fetching feed from ${url}:`, error);
+    if (error instanceof Error && error.name === "TimeoutError") {
       return {
-        feed: {
-          ...feed,
-          items: feed.items.map((item: CustomItem) => ({
-            ...item,
-            sourceFeedTitle: feed.title,
-            sourceFeedUrl: feedUrl,
-          })),
-        },
-        error: null,
+        feed: null,
+        error: `Request timed out after ${FETCH_TIMEOUT_MS}ms`,
       };
     }
-  } catch (error) {
-    console.error(
-      `Error fetching discovered feed from ${feedUrl} (original: ${originalUrl}):`,
-      error,
-    );
+    // undici wraps network errors as "fetch failed"; the cause has the useful message.
+    const cause =
+      error instanceof Error && error.cause instanceof Error
+        ? error.cause
+        : error;
     return {
       feed: null,
-      error: error instanceof Error ? error.message : String(error),
+      error: cause instanceof Error ? cause.message : String(cause),
     };
   }
+
+  const contentType = response.headers.get("content-type") || "";
+  const text = new TextDecoder().decode(body);
+
+  if (
+    contentType.includes("application/feed+json") ||
+    contentType.includes("application/json")
+  ) {
+    const { feed } = await parseFeedFromJsonFeed(text, url);
+    if (feed) {
+      return { feed, error: null };
+    }
+  }
+
+  const result =
+    response.status >= 300
+      ? { feed: null, error: `Status code ${response.status}` }
+      : await parseFeedFromXml(decodeXml(body, contentType), url);
+  if (result.feed || !allowDiscovery) {
+    return result;
+  }
+
+  const discoveredFeedUrl = discoverFeedFromHtml(text, contentType, url);
+  if (discoveredFeedUrl) {
+    return parseFeedFromUrl(discoveredFeedUrl, false);
+  }
+  return result;
 }
 
 /**
