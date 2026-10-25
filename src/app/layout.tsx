@@ -1,7 +1,7 @@
-import Script from "next/script";
+import { getFaqStructuredData } from "@/lib/faqs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { getFaqStructuredData } from "@/lib/faqs";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({

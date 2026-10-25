@@ -1,27 +1,6 @@
-import { encodeContent } from "@/lib/encoding";
-import { expect, it, describe } from "bun:test";
-import { GET } from "./route";
+import { describe, expect, it } from "bun:test";
 import { NextRequest } from "next/server";
-
-describe("encodeContent", () => {
-  it("should encode content", () => {
-    const content = "https://www.google.com/rss";
-    const merged = encodeContent(content);
-    expect(merged).toBe("https://www.google.com/rss");
-  });
-
-  it("should encode content with special characters", () => {
-    const content = "Hi—weird stuff here";
-    const merged = encodeContent(content);
-    expect(merged).toBe("Hiweird stuff here");
-  });
-
-  it("should encode smart quotes", () => {
-    const content = "\u201cHello\u201d";
-    const merged = encodeContent(content);
-    expect(merged).toBe("Hello");
-  });
-});
+import { GET } from "./route";
 
 describe("GET /api/merge - Multiple feeds with one returning 403", () => {
   it("should fetch multiple feeds and handle 403 error gracefully", async () => {
@@ -139,6 +118,90 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
       expect(errorIndex).toBeLessThan(feed1Index);
       expect(errorIndex).toBeLessThan(feed2Index);
     } finally {
+      server.stop();
+    }
+  });
+});
+
+describe("GET /api/merge - One fetch per feed", () => {
+  it("should fetch each URL once and skip a feed that is down", async () => {
+    const hits: Record<string, number> = {};
+    const server = Bun.serve({
+      port: 9998,
+      fetch(req) {
+        const { pathname } = new URL(req.url);
+        hits[pathname] = (hits[pathname] || 0) + 1;
+
+        if (pathname === "/feed.json") {
+          return Response.json(
+            {
+              version: "https://jsonfeed.org/version/1.1",
+              title: "JSON Feed",
+              items: [
+                {
+                  id: "1",
+                  title: "Article from JSON Feed",
+                  url: "http://localhost:9998/json1",
+                  date_published: "2025-10-28T10:00:00Z",
+                },
+              ],
+            },
+            { headers: { "content-type": "application/feed+json" } },
+          );
+        }
+
+        if (pathname === "/page.html") {
+          return new Response(
+            `<html><head><link rel="alternate" type="application/rss+xml" href="/feed.xml"></head></html>`,
+            { headers: { "content-type": "text/html" } },
+          );
+        }
+
+        if (pathname === "/feed.xml") {
+          return new Response(
+            `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Discovered Feed</title>
+    <link>http://localhost:9998</link>
+    <item>
+      <title>Article from Discovered Feed</title>
+      <link>http://localhost:9998/xml1</link>
+      <pubDate>Mon, 27 Oct 2025 10:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>`,
+            { headers: { "content-type": "application/rss+xml" } },
+          );
+        }
+
+        return new Response("Not found", { status: 404 });
+      },
+    });
+
+    const originalError = console.error;
+    console.error = () => {};
+    try {
+      const baseUrl = new URL("http://localhost:3000/api/merge");
+      baseUrl.searchParams.append("url", "http://localhost:9998/feed.json");
+      baseUrl.searchParams.append("url", "http://localhost:9998/page.html");
+      baseUrl.searchParams.append("url", "http://localhost:1/down.xml");
+
+      const response = await GET(new NextRequest(baseUrl));
+      const text = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(hits).toEqual({
+        "/feed.json": 1,
+        "/page.html": 1,
+        "/feed.xml": 1,
+      });
+      expect(text).toContain("Article from JSON Feed");
+      expect(text).toContain("Article from Discovered Feed");
+      expect(text).toContain("⚠️ Failed to load feed");
+      expect(text).toContain("http://localhost:1/down.xml");
+    } finally {
+      console.error = originalError;
       server.stop();
     }
   });

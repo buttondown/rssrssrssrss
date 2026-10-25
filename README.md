@@ -45,7 +45,7 @@ bun run format # Format code with Biome
 
 ## Tech Stack
 
-- Next.js 15 with React 19
+- Next.js 16 with React 19
 - TypeScript
 - Tailwind CSS 4
 - Biome for linting/formatting

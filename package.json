@@ -6,8 +6,8 @@
     "dev": "next dev -p 3030",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "format": "bunx biome check --fix --unsafe src/**/*.{ts,tsx,js,jsx,json,md,mdx}"
+    "lint": "eslint .",
+    "format": "bunx biome check --fix --unsafe src"
   },
   "dependencies": {
     "lz-string": "^1.5.0",
@@ -18,14 +18,14 @@
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
-    "@eslint/eslintrc": "^3.3.3",
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/bun": "^1.4.2",
     "@types/lz-string": "^1.5.0",
-    "@types/node": "^20.19.27",
+    "@types/node": "^22.20.5",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.2",
-    "eslint-config-next": "15.3.2",
+    "eslint-config-next": "^16.4.0",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3"
   },
