@@ -1,3 +1,4 @@
+import { edgeCache } from "@/lib/edge-cache";
 import { encodeContent } from "@/lib/encoding";
 import { Category, CustomFeed, CustomItem, JSONFeed } from "@/lib/types";
 import Parser from "rss-parser";
@@ -101,6 +102,54 @@ function decodeXml(body: Buffer, contentType: string): string {
   );
 }
 
+// Share each upstream feed across merged feeds for FEED_CACHE_SECONDS.
+async function fetchWithEdgeCache(url: string): Promise<Response> {
+  const cache = edgeCache();
+  const cached = await cache?.match(url);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept:
+        "application/feed+json, application/json, application/rss+xml, application/atom+xml, text/html, */*",
+    },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!cache || !response.ok) {
+    return response;
+  }
+
+  const copy = new Response(await response.arrayBuffer(), response);
+  copy.headers.delete("Set-Cookie");
+  copy.headers.set("Cache-Control", `public, s-maxage=${FEED_CACHE_SECONDS}`);
+  await cache.put(url, copy.clone());
+  return copy;
+}
+
+// Workers do not apply the abort signal to a slow response body, so also race a timer.
+async function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          Object.assign(new Error(`Timed out after ${ms}ms`), {
+            name: "TimeoutError",
+          }),
+        ),
+      ms,
+    );
+  });
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Parse a feed from a URL (RSS or JSON Feed) with a single fetch.
  * If the URL is not a feed, try to discover a feed from the HTML page.
@@ -115,16 +164,12 @@ export async function parseFeedFromUrl(
   let response: Response;
   let body: Buffer;
   try {
-    response = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept:
-          "application/feed+json, application/json, application/rss+xml, application/atom+xml, text/html, */*",
-      },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      next: { revalidate: FEED_CACHE_SECONDS },
-    });
-    body = Buffer.from(await response.arrayBuffer());
+    [response, body] = await withDeadline(
+      fetchWithEdgeCache(url).then(
+        async (r) => [r, Buffer.from(await r.arrayBuffer())] as const,
+      ),
+      FETCH_TIMEOUT_MS,
+    );
   } catch (error) {
     console.error(`Error fetching feed from ${url}:`, error);
     if (error instanceof Error && error.name === "TimeoutError") {

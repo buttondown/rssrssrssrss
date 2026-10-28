@@ -1,6 +1,4 @@
 node_modules/
-.next
-next-env.d.ts
 tsconfig.tsbuildinfo
-.open-next
+dist
 .wrangler

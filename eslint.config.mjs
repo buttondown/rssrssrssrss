@@ -1,15 +1,14 @@
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import reactHooks from "eslint-plugin-react-hooks";
+import tseslint from "typescript-eslint";
 
 const eslintConfig = defineConfig([
-	...nextVitals,
-	...nextTs,
-	globalIgnores([".next/**", ".open-next/**", ".wrangler/**", "out/**", "build/**", "next-env.d.ts"]),
+	...tseslint.configs.recommended,
+	reactHooks.configs.flat.recommended,
+	globalIgnores(["dist/**", ".wrangler/**"]),
 	{
 		rules: {
 			"@typescript-eslint/no-explicit-any": "off",
-			"react/no-unescaped-entities": "off",
 			"@typescript-eslint/no-unused-vars": "off",
 			"react-hooks/set-state-in-effect": "off",
 		},
