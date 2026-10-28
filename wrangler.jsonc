@@ -14,6 +14,10 @@
       "service": "rssrssrss"
     }
   ],
+  "routes": [
+    { "pattern": "rssrssrssrss.com", "custom_domain": true },
+    { "pattern": "www.rssrssrssrss.com", "custom_domain": true }
+  ],
   "observability": {
     "enabled": true
   }
