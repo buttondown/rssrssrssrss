@@ -15,7 +15,26 @@ const HEADERS = {
     "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400",
 };
 
+// Cloudflare does not cache Worker responses at the edge, so use the Cache API.
+// It honors s-maxage and only exists in the Workers runtime.
 export async function GET(request: NextRequest) {
+  const cache =
+    typeof caches === "undefined"
+      ? undefined
+      : (caches as unknown as { default: Cache }).default;
+  const cached = await cache?.match(request.url);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await merge(request);
+  if (cache && response.ok) {
+    await cache.put(request.url, response.clone());
+  }
+  return response;
+}
+
+async function merge(request: NextRequest) {
   // Get the URL parameters
   const searchParams = request.nextUrl.searchParams;
   let urls: string[] = [];

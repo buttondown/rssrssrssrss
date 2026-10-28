@@ -39,6 +39,8 @@ Open [http://localhost:3030](http://localhost:3030) with your browser to see the
 bun dev      # Start development server
 bun build    # Build for production
 bun start    # Start production server
+bun run preview # Build and run the Cloudflare Worker locally
+bun run deploy  # Build and deploy to Cloudflare Workers
 bun run lint # Run linter
 bun run format # Format code with Biome
 ```
@@ -50,3 +52,4 @@ bun run format # Format code with Biome
 - Tailwind CSS 4
 - Biome for linting/formatting
 - Bun for package management
+- Cloudflare Workers via [OpenNext](https://opennext.js.org/cloudflare)
