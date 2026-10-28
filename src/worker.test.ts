@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { NextRequest } from "next/server";
-import { GET } from "./route";
+import worker from "./worker";
 
 describe("GET /api/merge - Multiple feeds with one returning 403", () => {
   it("should fetch multiple feeds and handle 403 error gracefully", async () => {
@@ -81,8 +80,7 @@ describe("GET /api/merge - Multiple feeds with one returning 403", () => {
       baseUrl.searchParams.append("url", "http://localhost:9999/feed2.xml");
       baseUrl.searchParams.append("url", "http://localhost:9999/feed3.xml");
 
-      const request = new NextRequest(baseUrl);
-      const response = await GET(request);
+      const response = await worker.fetch(new Request(baseUrl));
       const text = await response.text();
 
       // Restore console.error
@@ -187,7 +185,7 @@ describe("GET /api/merge - One fetch per feed", () => {
       baseUrl.searchParams.append("url", "http://localhost:9998/page.html");
       baseUrl.searchParams.append("url", "http://localhost:1/down.xml");
 
-      const response = await GET(new NextRequest(baseUrl));
+      const response = await worker.fetch(new Request(baseUrl));
       const text = await response.text();
 
       expect(response.status).toBe(200);

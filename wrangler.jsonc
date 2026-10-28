@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rssrssrss",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "routes": [
+    { "pattern": "rssrssrssrss.com", "custom_domain": true },
+    { "pattern": "www.rssrssrssrss.com", "custom_domain": true }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

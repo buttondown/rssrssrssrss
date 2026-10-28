@@ -37,16 +37,18 @@ Open [http://localhost:3030](http://localhost:3030) with your browser to see the
 
 ```bash
 bun dev      # Start development server
-bun build    # Build for production
-bun start    # Start production server
+bun run build   # Build for production
+bun run preview # Build and run the Cloudflare Worker locally
+bun run deploy  # Build and deploy to Cloudflare Workers
 bun run lint # Run linter
 bun run format # Format code with Biome
 ```
 
 ## Tech Stack
 
-- Next.js 16 with React 19
+- React 19, built with Vite
 - TypeScript
 - Tailwind CSS 4
 - Biome for linting/formatting
 - Bun for package management
+- Cloudflare Workers: `src/worker.ts` serves `/api/merge`, and static assets serve the page

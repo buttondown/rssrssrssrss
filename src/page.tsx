@@ -1,5 +1,3 @@
-"use client";
-
 import { FAQS } from "@/lib/faqs";
 import LZString from "lz-string";
 import { useEffect, useState } from "react";

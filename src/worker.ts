@@ -1,3 +1,4 @@
+import { edgeCache } from "@/lib/edge-cache";
 import {
   generateJSONFeed,
   generateRSS,
@@ -5,7 +6,6 @@ import {
   parseFeedFromUrl,
 } from "@/lib/rss";
 import LZString from "lz-string";
-import { type NextRequest, NextResponse } from "next/server";
 
 const GENERATOR = "rssrssrssrss";
 
@@ -15,9 +15,66 @@ const HEADERS = {
     "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400",
 };
 
-export async function GET(request: NextRequest) {
+// Matches the s-maxage and stale-while-revalidate in HEADERS.
+const FRESH_SECONDS = 3600;
+const STALE_SECONDS = 86400;
+const CACHED_AT = "X-Cached-At";
+
+type Context = { waitUntil(promise: Promise<unknown>): void };
+
+export default {
+  async fetch(
+    request: Request,
+    _env?: unknown,
+    ctx?: Context,
+  ): Promise<Response> {
+    if (new URL(request.url).pathname !== "/api/merge") {
+      return new Response("Not found", { status: 404 });
+    }
+    return handleMerge(request, ctx);
+  },
+};
+
+// Cloudflare does not cache Worker responses at the edge, and the Cache API
+// has no stale-while-revalidate, so serve stale copies and refresh them here.
+async function handleMerge(request: Request, ctx?: Context) {
+  const cache = edgeCache();
+  if (!cache) {
+    return merge(request);
+  }
+
+  const cached = await cache.match(request.url);
+  if (!cached) {
+    return mergeAndCache(request, cache);
+  }
+
+  const age = (Date.now() - Number(cached.headers.get(CACHED_AT))) / 1000;
+  if (age > FRESH_SECONDS) {
+    ctx?.waitUntil(mergeAndCache(request, cache));
+  }
+  const response = new Response(cached.body, cached);
+  response.headers.set("Cache-Control", HEADERS["Cache-Control"]);
+  response.headers.delete(CACHED_AT);
+  return response;
+}
+
+async function mergeAndCache(request: Request, cache: Cache) {
+  const response = await merge(request);
+  if (response.ok) {
+    const copy = new Response(response.clone().body, response);
+    copy.headers.set(
+      "Cache-Control",
+      `public, s-maxage=${FRESH_SECONDS + STALE_SECONDS}`,
+    );
+    copy.headers.set(CACHED_AT, String(Date.now()));
+    await cache.put(request.url, copy);
+  }
+  return response;
+}
+
+async function merge(request: Request) {
   // Get the URL parameters
-  const searchParams = request.nextUrl.searchParams;
+  const searchParams = new URL(request.url).searchParams;
   let urls: string[] = [];
   const format = searchParams.get("format") || "rss"; // Default to RSS
 
@@ -35,7 +92,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       // Per #7, an all-lowercase payload can hint at a Safari issue with copy/pasting and we tweak the error message to help.
       if (compressedFeeds.toLowerCase() === compressedFeeds) {
-        return NextResponse.json(
+        return Response.json(
           {
             error:
               "The payload you've pasted is all lowercase, which is a common issue with Safari copy/paste. Please try again with a different browser.",
@@ -44,7 +101,7 @@ export async function GET(request: NextRequest) {
           { status: 400 },
         );
       }
-      return NextResponse.json(
+      return Response.json(
         {
           error: `${GENERATOR} cannot parse that payload. Are you sure you copied/pasted it correctly?`,
           payload: compressedFeeds,
@@ -59,7 +116,7 @@ export async function GET(request: NextRequest) {
 
   // If no URLs are provided, return an error
   if (!urls || urls.length === 0) {
-    return NextResponse.json(
+    return Response.json(
       { error: "No RSS feed URLs provided" },
       { status: 400 },
     );
@@ -74,13 +131,13 @@ export async function GET(request: NextRequest) {
   const results = await Promise.all(feedPromises);
 
   // Merge all feeds into a single feed
-  const mergedFeed = mergeFeeds(results, request.nextUrl.toString());
+  const mergedFeed = mergeFeeds(results, request.url);
 
   // Check if JSON format is requested
   if (format === "json" || format === "jsonfeed") {
-    const jsonOutput = generateJSONFeed(mergedFeed, request.nextUrl.toString());
+    const jsonOutput = generateJSONFeed(mergedFeed, request.url);
 
-    return new NextResponse(jsonOutput, {
+    return new Response(jsonOutput, {
       headers: {
         "Content-Type": "application/feed+json; charset=utf-8",
         "Cache-Control": HEADERS["Cache-Control"],
@@ -89,10 +146,10 @@ export async function GET(request: NextRequest) {
   }
 
   // Generate XML using string concatenation (default RSS output)
-  const xml = generateRSS(mergedFeed, request.nextUrl.toString());
+  const xml = generateRSS(mergedFeed, request.url);
 
   // Return the XML response
-  return new NextResponse(xml, {
+  return new Response(xml, {
     headers: HEADERS,
   });
 }
