@@ -16,8 +16,19 @@ const GENERATOR = "rssrssrssrss";
 const FEED_TITLE = "Merged Feed";
 // Not registered with Cloudflare yet, but hnrss.org returns a 429 if we don't provide any UA.
 const USER_AGENT = "rssrssrssrss (https://rssrssrssrss.com)";
-const FETCH_TIMEOUT_MS = 30000;
-const FEED_CACHE_SECONDS = 600;
+// A Worker can have six connections waiting for response headers, and queues
+// the rest. Cache API calls count too, so keep one connection free for them.
+const MAX_CONCURRENT_FETCHES = 5;
+// Each upstream fetch gets this long once it has a connection.
+const FETCH_TIMEOUT_MS = 10000;
+// All feeds in a merge must load by then. A refresh in waitUntil is canceled
+// 30 seconds after the response, so leave room to build and cache the merge.
+const MERGE_DEADLINE_MS = 20000;
+// Share each upstream feed across merged feeds for FEED_FRESH_SECONDS, and
+// keep it for FEED_STALE_SECONDS more in case the feed fails to load later.
+const FEED_FRESH_SECONDS = 600;
+const FEED_STALE_SECONDS = 7 * 86400;
+const CACHED_AT = "X-Cached-At";
 
 /**
  * Try to discover RSS/Atom feed URLs from an HTML page by looking for
@@ -102,52 +113,177 @@ function decodeXml(body: Buffer, contentType: string): string {
   );
 }
 
-// Share each upstream feed across merged feeds for FEED_CACHE_SECONDS.
-async function fetchWithEdgeCache(url: string): Promise<Response> {
-  const cache = edgeCache();
-  const cached = await cache?.match(url);
-  if (cached) {
-    return cached;
-  }
+type FetchedFeed = { response: Response; body: Buffer };
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept:
-        "application/feed+json, application/json, application/rss+xml, application/atom+xml, text/html, */*",
-    },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+export type FetchOptions = {
+  concurrency?: number;
+  fetchTimeoutMs?: number;
+  deadlineMs?: number;
+};
+
+// Shared by every fetch in one merge.
+type FetchSession = {
+  limit: <T>(task: () => Promise<T>) => Promise<T>;
+  fetchTimeoutMs: number;
+  deadline: number;
+};
+
+// Run at most `max` tasks at once, in the order they were queued.
+export function createLimiter(max: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return async function limit<T>(task: () => Promise<T>): Promise<T> {
+    if (active < max) {
+      active++;
+    } else {
+      // A finishing task hands its slot straight to us.
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    try {
+      return await task();
+    } finally {
+      const next = queue.shift();
+      if (next) {
+        next();
+      } else {
+        active--;
+      }
+    }
+  };
+}
+
+function createSession(options: FetchOptions = {}): FetchSession {
+  return {
+    limit: createLimiter(options.concurrency ?? MAX_CONCURRENT_FETCHES),
+    fetchTimeoutMs: options.fetchTimeoutMs ?? FETCH_TIMEOUT_MS,
+    deadline: Date.now() + (options.deadlineMs ?? MERGE_DEADLINE_MS),
+  };
+}
+
+function timeoutError(): Error {
+  return Object.assign(new Error("Request timed out"), {
+    name: "TimeoutError",
   });
-  if (!cache || !response.ok) {
-    return response;
-  }
-
-  const copy = new Response(await response.arrayBuffer(), response);
-  copy.headers.delete("Set-Cookie");
-  copy.headers.set("Cache-Control", `public, s-maxage=${FEED_CACHE_SECONDS}`);
-  await cache.put(url, copy.clone());
-  return copy;
 }
 
 // Workers do not apply the abort signal to a slow response body, so also race a timer.
-async function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+async function withDeadline<T>(
+  promise: Promise<T>,
+  deadline: number,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => {
+  const expired = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () =>
-        reject(
-          Object.assign(new Error(`Timed out after ${ms}ms`), {
-            name: "TimeoutError",
-          }),
-        ),
-      ms,
+      () => reject(timeoutError()),
+      Math.max(0, deadline - Date.now()),
     );
   });
   try {
-    return await Promise.race([promise, deadline]);
+    return await Promise.race([promise, expired]);
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Fetch a feed from its server. The timeout starts once a connection is free,
+// so feeds queued behind slow servers do not time out while they wait.
+async function fetchUpstream(
+  url: string,
+  session: FetchSession,
+): Promise<FetchedFeed> {
+  let deadline = session.deadline;
+  const response = await session.limit(() => {
+    deadline = Math.min(Date.now() + session.fetchTimeoutMs, session.deadline);
+    if (deadline <= Date.now()) {
+      return Promise.reject(timeoutError());
+    }
+    return withDeadline(
+      fetch(url, {
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept:
+            "application/feed+json, application/json, application/rss+xml, application/atom+xml, text/html, */*",
+        },
+        signal: AbortSignal.timeout(deadline - Date.now()),
+      }),
+      deadline,
+    );
+  });
+  const body = Buffer.from(
+    await withDeadline(response.arrayBuffer(), deadline),
+  );
+  return { response, body };
+}
+
+async function readCached(response: Response): Promise<FetchedFeed> {
+  return { response, body: Buffer.from(await response.arrayBuffer()) };
+}
+
+// Serve each upstream feed from the edge cache while it is fresh. Once it is
+// stale, fetch it again, but fall back to the stale copy if that fails, so one
+// slow or flaky server does not put an error item in every merged feed.
+async function fetchWithEdgeCache(
+  url: string,
+  session: FetchSession,
+): Promise<FetchedFeed> {
+  const cache = edgeCache();
+  const cached = await cache?.match(url);
+  if (!cache || !cached) {
+    const fetched = await fetchUpstream(url, session);
+    if (cache && fetched.response.ok) {
+      await putInCache(cache, url, fetched);
+    }
+    return fetched;
+  }
+
+  const age = (Date.now() - Number(cached.headers.get(CACHED_AT))) / 1000;
+  if (age <= FEED_FRESH_SECONDS) {
+    return readCached(cached);
+  }
+
+  try {
+    const fetched = await fetchUpstream(url, session);
+    if (fetched.response.ok) {
+      await cached.body?.cancel();
+      await putInCache(cache, url, fetched);
+      return fetched;
+    }
+    console.warn(
+      `Serving stale copy of ${url}: status ${fetched.response.status}`,
+    );
+  } catch (error) {
+    console.warn(`Serving stale copy of ${url}:`, error);
+  }
+  return readCached(cached);
+}
+
+async function putInCache(cache: Cache, url: string, fetched: FetchedFeed) {
+  const copy = new Response(new Uint8Array(fetched.body), fetched.response);
+  copy.headers.delete("Set-Cookie");
+  copy.headers.set(
+    "Cache-Control",
+    `public, s-maxage=${FEED_FRESH_SECONDS + FEED_STALE_SECONDS}`,
+  );
+  copy.headers.set(CACHED_AT, String(Date.now()));
+  await cache.put(url, copy);
+}
+
+/**
+ * Fetch and parse several feeds, sharing one connection limit and deadline.
+ */
+export async function parseFeedsFromUrls(
+  urls: string[],
+  options?: FetchOptions,
+): Promise<
+  Array<{ feed: CustomFeed | null; error: string | null; url: string }>
+> {
+  const session = createSession(options);
+  return Promise.all(
+    urls.map(async (url) => ({
+      ...(await parseFeedFromUrl(url, true, session)),
+      url,
+    })),
+  );
 }
 
 /**
@@ -157,6 +293,7 @@ async function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 export async function parseFeedFromUrl(
   url: string,
   allowDiscovery = true,
+  session: FetchSession = createSession(),
 ): Promise<{
   feed: CustomFeed | null;
   error: string | null;
@@ -164,19 +301,11 @@ export async function parseFeedFromUrl(
   let response: Response;
   let body: Buffer;
   try {
-    [response, body] = await withDeadline(
-      fetchWithEdgeCache(url).then(
-        async (r) => [r, Buffer.from(await r.arrayBuffer())] as const,
-      ),
-      FETCH_TIMEOUT_MS,
-    );
+    ({ response, body } = await fetchWithEdgeCache(url, session));
   } catch (error) {
     console.error(`Error fetching feed from ${url}:`, error);
     if (error instanceof Error && error.name === "TimeoutError") {
-      return {
-        feed: null,
-        error: `Request timed out after ${FETCH_TIMEOUT_MS}ms`,
-      };
+      return { feed: null, error: "Request timed out" };
     }
     // undici wraps network errors as "fetch failed"; the cause has the useful message.
     const cause =
@@ -212,7 +341,7 @@ export async function parseFeedFromUrl(
 
   const discoveredFeedUrl = discoverFeedFromHtml(text, contentType, url);
   if (discoveredFeedUrl) {
-    return parseFeedFromUrl(discoveredFeedUrl, false);
+    return parseFeedFromUrl(discoveredFeedUrl, false, session);
   }
   return result;
 }
@@ -333,7 +462,9 @@ export function mergeFeeds(
     isoDate: new Date().toISOString(),
     contentSnippet: `Error: ${failed.error}`,
     content: `<p>Failed to load this feed:</p><p><code>${escapeXml(failed.url)}</code></p><p>Error: ${escapeXml(failed.error)}</p>`,
-    guid: `error-${failed.url}-${Date.now()}`,
+    // Keep the guid stable so readers show one error item per failing feed,
+    // not a new one every time they poll.
+    guid: `error-${failed.url}`,
   }));
 
   // Sort regular items by date (newest first), keep error items at top
