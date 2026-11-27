@@ -147,13 +147,11 @@ describe("rss - XML to final output", () => {
     const rssOutput = generateRSS(mergedFeed, "http://example.com/merged");
 
     // Normalize dates and timestamps in RSS output for snapshot comparison
-    // Error items have dynamically generated timestamps, so normalize them
     const normalizedRss = rssOutput
       .replace(
         /<lastBuildDate>.*?<\/lastBuildDate>/,
         "<lastBuildDate>NORMALIZED_DATE</lastBuildDate>",
       )
-      .replace(/guid>error-.*?-\d+</g, "guid>error-NORMALIZED_TIMESTAMP<")
       .replace(
         /<pubDate>\w{3}, \d+ \w{3} \d{4} \d{2}:\d{2}:\d{2} GMT<\/pubDate>/g,
         "<pubDate>NORMALIZED_DATE</pubDate>",

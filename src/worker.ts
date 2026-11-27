@@ -3,7 +3,7 @@ import {
   generateJSONFeed,
   generateRSS,
   mergeFeeds,
-  parseFeedFromUrl,
+  parseFeedsFromUrls,
 } from "@/lib/rss";
 import LZString from "lz-string";
 
@@ -18,7 +18,9 @@ const HEADERS = {
 // Matches the s-maxage and stale-while-revalidate in HEADERS.
 const FRESH_SECONDS = 3600;
 const STALE_SECONDS = 86400;
-const CACHED_AT = "X-Cached-At";
+// Retry sooner when some feeds failed to load.
+const FRESH_SECONDS_WITH_FAILURES = 600;
+const FRESH_UNTIL = "X-Fresh-Until";
 
 type Context = { waitUntil(promise: Promise<unknown>): void };
 
@@ -40,7 +42,7 @@ export default {
 async function handleMerge(request: Request, ctx?: Context) {
   const cache = edgeCache();
   if (!cache) {
-    return merge(request);
+    return (await merge(request)).response;
   }
 
   const cached = await cache.match(request.url);
@@ -48,31 +50,35 @@ async function handleMerge(request: Request, ctx?: Context) {
     return mergeAndCache(request, cache);
   }
 
-  const age = (Date.now() - Number(cached.headers.get(CACHED_AT))) / 1000;
-  if (age > FRESH_SECONDS) {
+  if (Date.now() > Number(cached.headers.get(FRESH_UNTIL))) {
     ctx?.waitUntil(mergeAndCache(request, cache));
   }
   const response = new Response(cached.body, cached);
   response.headers.set("Cache-Control", HEADERS["Cache-Control"]);
-  response.headers.delete(CACHED_AT);
+  response.headers.delete(FRESH_UNTIL);
   return response;
 }
 
 async function mergeAndCache(request: Request, cache: Cache) {
-  const response = await merge(request);
+  const { response, failures } = await merge(request);
   if (response.ok) {
+    const freshSeconds =
+      failures > 0 ? FRESH_SECONDS_WITH_FAILURES : FRESH_SECONDS;
     const copy = new Response(response.clone().body, response);
     copy.headers.set(
       "Cache-Control",
       `public, s-maxage=${FRESH_SECONDS + STALE_SECONDS}`,
     );
-    copy.headers.set(CACHED_AT, String(Date.now()));
+    copy.headers.set(FRESH_UNTIL, String(Date.now() + freshSeconds * 1000));
     await cache.put(request.url, copy);
   }
   return response;
 }
 
-async function merge(request: Request) {
+// Returns the merged feed and how many of its feeds failed to load.
+async function merge(
+  request: Request,
+): Promise<{ response: Response; failures: number }> {
   // Get the URL parameters
   const searchParams = new URL(request.url).searchParams;
   let urls: string[] = [];
@@ -92,7 +98,7 @@ async function merge(request: Request) {
     } catch (error) {
       // Per #7, an all-lowercase payload can hint at a Safari issue with copy/pasting and we tweak the error message to help.
       if (compressedFeeds.toLowerCase() === compressedFeeds) {
-        return Response.json(
+        return errorResponse(
           {
             error:
               "The payload you've pasted is all lowercase, which is a common issue with Safari copy/paste. Please try again with a different browser.",
@@ -101,7 +107,7 @@ async function merge(request: Request) {
           { status: 400 },
         );
       }
-      return Response.json(
+      return errorResponse(
         {
           error: `${GENERATOR} cannot parse that payload. Are you sure you copied/pasted it correctly?`,
           payload: compressedFeeds,
@@ -116,19 +122,15 @@ async function merge(request: Request) {
 
   // If no URLs are provided, return an error
   if (!urls || urls.length === 0) {
-    return Response.json(
+    return errorResponse(
       { error: "No RSS feed URLs provided" },
       { status: 400 },
     );
   }
 
   // Fetch and parse all feeds (RSS and JSON) in parallel
-  const feedPromises = urls.map(async (url) => {
-    const result = await parseFeedFromUrl(url);
-    return { ...result, url };
-  });
-
-  const results = await Promise.all(feedPromises);
+  const results = await parseFeedsFromUrls(urls);
+  const failures = results.filter(({ error }) => error).length;
 
   // Merge all feeds into a single feed
   const mergedFeed = mergeFeeds(results, request.url);
@@ -137,19 +139,22 @@ async function merge(request: Request) {
   if (format === "json" || format === "jsonfeed") {
     const jsonOutput = generateJSONFeed(mergedFeed, request.url);
 
-    return new Response(jsonOutput, {
+    const response = new Response(jsonOutput, {
       headers: {
         "Content-Type": "application/feed+json; charset=utf-8",
         "Cache-Control": HEADERS["Cache-Control"],
       },
     });
+    return { response, failures };
   }
 
   // Generate XML using string concatenation (default RSS output)
   const xml = generateRSS(mergedFeed, request.url);
 
   // Return the XML response
-  return new Response(xml, {
-    headers: HEADERS,
-  });
+  return { response: new Response(xml, { headers: HEADERS }), failures };
+}
+
+function errorResponse(body: unknown, init: ResponseInit) {
+  return { response: Response.json(body, init), failures: 0 };
 }
